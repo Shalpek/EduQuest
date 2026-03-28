@@ -3,9 +3,11 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // Use 10.0.2.2 for Android emulator to host localhost, or standard localhost for Web/Desktop
-  // Assuming a local run for the defense.
-  static const String baseUrl = 'http://192.168.1.68:8000/api';
+  // Override with --dart-define=API_BASE_URL=http://<your-ip>:8000/api when the host changes.
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://192.168.10.6:8000/api',
+  );
   
   static Future<Map<String, dynamic>?> login(String email, String password) async {
     try {

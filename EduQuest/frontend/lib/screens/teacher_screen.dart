@@ -49,7 +49,7 @@ class _TeacherScreenState extends State<TeacherScreen> {
           children: [
             const Text('Courses Managed', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            ...courses.map((c) => _buildCourseCard(c)).toList(),
+            ...courses.map((c) => _buildCourseCard(c)),
             const SizedBox(height: 32),
             const Text('Students Progress', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),

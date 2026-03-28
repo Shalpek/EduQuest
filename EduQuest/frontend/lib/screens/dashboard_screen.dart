@@ -61,7 +61,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                ],
              ),
             const SizedBox(height: 16),
-            ...courses.map((c) => _buildCourseCard(c)).toList(),
+            ...courses.map((c) => _buildCourseCard(c)),
           ],
         ),
       ),

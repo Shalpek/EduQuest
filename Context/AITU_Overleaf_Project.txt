@@ -1,0 +1,1935 @@
+Development of an Application for
+AI-Enhanced Game-Based Learning
+By
+Telgarina Kuralay
+Baimurzin Bakhtiyar
+Bimurzin Assanali
+
+Software Engineering
+Astana IT University
+
+6B06102 — Software Engineering
+Diploma project
+
+June 2026
+Astana
+
+Abstract
+This diploma project presents the development of an application for AI-enhanced gamebased learning. The study addresses a persistent limitation of many digital learning tools:
+they often provide the same tasks, the same pace, and the same feedback for all learners,
+which can reduce engagement and overlook differences in prior knowledge, progress, and
+motivation.
+The thesis combines a literature review on gamification, adaptive learning, intelligent tutoring systems, learning analytics, and responsible AI in education with an
+updated mixed-methods survey analysis based on 100 responses. The results show that
+students value immediate feedback, retries, visible progress, and meaningful challenge
+more consistently than purely speed-based competition.
+On the basis of these findings, the project proposes a minimum viable product
+and a service-oriented architecture for a mobile-first educational platform. The system
+integrates learner modelling, game-based practice, AI-assisted hints and explanations,
+teacher analytics, and controlled safety mechanisms. The selected technology stack
+combines Flutter, FastAPI, Firebase, S3/MinIO, and an LLM-based tutoring workflow
+orchestrated through n8n. In practical terms, the project offers a research-grounded
+and technically feasible blueprint for a personalized, engaging, and scalable learning
+application.
+
+i
+
+List of Abbreviations
+AI
+
+Artificial Intelligence
+
+API
+
+Application Programming Interface
+
+BFF
+
+Backend for Frontend
+
+GBL
+
+Game-Based Learning
+
+IAM
+
+Identity and Access Management
+
+LLM
+
+Large Language Model
+
+MVP
+
+Minimum Viable Product
+
+RBAC
+
+Role-Based Access Control
+
+UML
+
+Unified Modeling Language
+
+UI
+
+User Interface
+
+UX
+
+User Experience
+
+List of Tables
+6.1 Technology Selection Criteria . . . . . . . . . . . . . . . . . . . . . . . . . .
+6.2 Summary of Technology Comparison and Final Choice . . . . . . . . . . . .
+6.3 Final Technology Stack Used in the MVP . . . . . . . . . . . . . . . . . . .
+ii
+
+41
+42
+46
+
+List of Figures
+4.1
+4.2
+4.3
+4.4
+4.5
+
+5.1
+5.2
+5.3
+5.4
+5.5
+
+Participant profile: age, gender, study level, and frequency of gamified-tool use. 21
+Exposure to gamified tools, usage mode, and commonly encountered features. 22
+Student ratings of engagement and perceived learning outcomes on the 5-point
+Likert scale. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23
+Perceived usefulness of specific gamification features. . . . . . . . . . . . . . 24
+Leaderboard preferences and comparison of focus time during gamified versus
+regular lessons. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+Use Case Diagram of the Proposed AI-Enhanced Game-Based Learning
+Application . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+High-Level System Architecture of the Proposed AI-Enhanced Game-Based
+Learning Application . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+Sequence Diagram of Quiz Submission and Asynchronous Update Processing
+Sequence Diagram of AI Help Request, Validation, and Fallback Handling .
+Class Diagram of the Main Domain Entities in the Proposed Application . .
+
+31
+33
+34
+36
+38
+
+Table of Contents
+Abstract
+
+i
+
+List of Abbreviations
+
+ii
+
+List of Tables
+
+ii
+iii
+
+TABLE OF CONTENTS
+
+List of Tables
+
+iii
+
+List of Figures
+
+iii
+
+List of Figures
+
+iii
+
+1 Introduction
+1.1 Research Aim . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+1.2 Research Objectives . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+1.3 Summary . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+1
+4
+4
+5
+
+2 Literature Review
+6
+2.1 Executive Summary . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+6
+2.2 Introduction and Scope of the Review . . . . . . . . . . . . . . . . . . . .
+7
+2.3 Gamification and Game Pedagogy Design: Theories and Design Frameworks 8
+2.4 Gamification Effects on Motivation and Learning Outcomes . . . . . . .
+9
+2.5 Platform Modes and Functional Patterns: Kahoot! and Quizizz as Base Line 10
+2.6 AI-Enhanced Game-Based Learning: Adaptivity, Personalization, and
+Stealth Assessment . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11
+3 Analysis of Existing Systems and Conceptual Framework
+14
+3.1 Evaluation of Existing Systems . . . . . . . . . . . . . . . . . . . . . . . 14
+3.2 Conceptual Framework . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+3.3 How the Proposed Project Improves on Existing Systems . . . . . . . . . 16
+3.4 Methods and Sources Used to Collect Data for the Project . . . . . . . . 17
+3.5 Challenges and Limitations in Obtaining Relevant Data . . . . . . . . . . 17
+4 Methodology and Updated Survey Analysis
+18
+4.1 Introduction . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18
+4.2 Purpose and Research Focus . . . . . . . . . . . . . . . . . . . . . . . . . 19
+4.3 Methodology . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+4.3.1 Survey Design . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+4.3.2 Participants . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+4.3.3 Data Collection . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+4.3.4 Data Analysis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+4.4 Results . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+4.4.1 Demographics and General Exposure . . . . . . . . . . . . . . . . 20
+iv
+
+TABLE OF CONTENTS
+
+4.5
+4.6
+4.7
+
+4.4.2 Engagement, Attention, and Learning Outcomes . . . . . . . . . .
+4.4.3 Preferred Feature Design . . . . . . . . . . . . . . . . . . . . . . .
+4.4.4 Qualitative Insights from Open-Ended Responses . . . . . . . . .
+Discussion . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+Limitations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+Summary . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+
+22
+23
+25
+27
+28
+28
+
+5 MVP, UML Diagrams, and Project Architecture
+29
+5.1 Minimum Viable Product (MVP) Features . . . . . . . . . . . . . . . . . 29
+5.2 Use Case Diagram . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 31
+5.3 High-Level System Architecture . . . . . . . . . . . . . . . . . . . . . . . 33
+5.4 Sequence Diagram: Quiz Submission and Result Processing . . . . . . . . 34
+5.5 Sequence Diagram: AI Help Request and Safety-Controlled Response . . 36
+5.6 Class Diagram . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 38
+6 Technology Comparison and Technology Used
+40
+6.1 Technology Selection Criteria . . . . . . . . . . . . . . . . . . . . . . . . 40
+6.2 Comparison of Main Technologies . . . . . . . . . . . . . . . . . . . . . . 41
+6.3 Frontend Technology: Flutter . . . . . . . . . . . . . . . . . . . . . . . . 42
+6.4 Backend and API Layer: Python with FastAPI . . . . . . . . . . . . . . . 43
+6.5 Database and Authentication: Firebase / Firestore / Firebase Auth . . . 43
+6.6 AI Integration and Orchestration: LLM API with n8n . . . . . . . . . . . 44
+6.7 File Storage: S3/MinIO . . . . . . . . . . . . . . . . . . . . . . . . . . . . 44
+6.8 Testing, Version Control, and Deployment Support . . . . . . . . . . . . 45
+6.9 Rationale for the Final Technology Stack . . . . . . . . . . . . . . . . . . 45
+6.10 Summary . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 46
+7 Conclusion
+
+48
+
+References
+
+49
+
+v
+
+Chapter 1
+Introduction
+Rapid digitalization of education has opened new possibilities for interactive and personalized learning, but it has also raised some nagging problems that traditional forms of
+instruction and many standard e-learning tools are not entirely capable of remedying.
+In a lot of educational spaces, students are still faced with repetitive exercises, delayed
+feedback, and one-size-fits-all learning sequences that do not respond well to differences
+in prior knowledge, pace, motivation, or learning preferences. As a result, even digital
+platforms can recreate the same disengagement that is evident in conventional instruction.
+This challenge makes it necessary to transition from static content delivery to systems
+that are able to simultaneously motivate learners and also adapt to individual progress
+(Dichev & Dicheva, 2017; Li & Shi, 2023; Cuellar-Rojas & Guemes-Castorena, 2022).
+One of the most influential answers to this challenge has been the use of gamification
+and games-based learning. Although these concepts are related, they are not the same
+thing. Gamification is the incorporation of game elements such as points, levels, badges,
+leaderboards and progress bars, and rewards into non-game learning experiences, while
+game-based learning is where game activity is used as the primary mode of learning. The
+distinction is important for this thesis as the topic is not merely about adding decorative
+mechanics to an existing platform. Rather, it has to do with the development of an
+application where the learning process is organized through game-based interaction and
+augmented with artificial intelligence so that the experience is adaptive, data-informed,
+and pedagogically purposeful (Dichev & Dicheva, 2017; Huang & Soman, 2013; Chiotaki
+& Karpouzis, 2023).
+The literature gives strong evidence that well designed gameful learning environments
+can improve motivation, engagement and in the right conditions learning outcomes.
+Critical reviews and meta-analyses indicate that these effects are real but are quite
+1
+
+CHAPTER 1. INTRODUCTION
+
+sensitive to the quality of the design, the duration of the learning, the learning context
+and the extent to which game mechanics are aligned with educational goals. In other
+words, while game elements are effective to the extent that they support retrieval practice,
+feedback, mastery progression, and meaningful challenge, to the extent that they function
+as superficial rewards that are not tied to the learning task itself, game elements are
+much less effective (Dichev & Dicheva, 2017; Li & Shi, 2023; Gui & Tai, 2023).
+Studies of popular classroom software like Kahoot! and Quizizz can help to understand
+the promise and limitations of current game-based educational tools. Research indicates
+that such platforms often add more engagement, fun and focus to the classroom through
+the introduction of instant feedback, competition and visible progress and the ability to
+repeat short tasks. At the same time, these tools are generally poor in their adaptivity.
+They tend to show identical questions/activity structures to everyone, depend on their
+fixed difficulty and offer limited personalization, beyond pacing or displaying scores. This
+can mean that they can be useful as baseline examples, but they are not yet the full
+potential of AI driven game-based learning applications (Aibar-Almazan and GonzalezMartin, 2024; Bicen and Kocakoyun, 2018; Razali and Salleh, 2020; Smiderle and de
+Oliveira, 2020; Qureshi and Khatoon, 2023).
+This is the one limitation where artificial intelligence comes in handy. Research on
+adaptive game-based learning and Artificial Intelligence (AI)-enabled adaptive learning
+systems reveals that there are several levels at which personalization can be applied:
+content-selection, difficulty-adjusting, pacing, hint generation, navigation-paths, learner
+modeling, and the next-action-recommendation. Instead of treating all users the same way,
+an application powered by AI can analyse data based on the interaction, and adapt the
+experience based on what the learner needs at that moment. Such a design is particularly
+useful in educational games where the balancing act between challenge and skill has
+a great effect on engagement and persistence (Chiotaki & Karpouzis, 2023; Kabudi &
+Olsen, 2021).
+From a software and system design point of view this adaptability ability requires
+more than a game interface. It requires a structured architecture where pedagogical logic,
+learner data, game mechanics and AI services work together. Research on intelligent
+tutoring systems is relevant in this context because it suggests important elements that
+can provide insight into designing the application: a learner model, domain or content
+model, a pedagogical model that identifies instructional actions, and an interaction
+layer at which the learner experiences the system. Work on gamified intelligent tutoring
+systems is further showing that game mechanics and adaptive tutoring should not be
+2
+
+CHAPTER 1. INTRODUCTION
+
+conceived separately but need to be conceptually integrated in order to have consistent
+reward systems, progression, and feedback in relation to the educational model (Dermeval
+& Vassileva, 2019; Cuellar-Rojas & Guemes-Castorena, 2022). Another great benefit
+of the AI-enhanced game-based applications is the potential for embedded analytics
+and stealth assessment. In such systems, evidence of learning can be deduced from
+gameplay behaviors, response patterns, choices, errors, time on task, or strategy use
+without interrupting the flow of play. This enables formative assessment to be supported
+in a way that is natural to learners as well as providing richer data to teachers or system
+administrators about progress. Recent efforts in learning analytics of serious games and
+on game-based assessment have demonstrated that traces from interactions can be used
+to support not only the measurement of performance, but also other improvements in
+application, personalization, and more timely instructional feedback (Daoudi, 2022; Fang
+& McNamara, 2023; Zhu & Yang, 2023; Calvo-Morata & Fernandez-Manjon, 2025).
+However, the literature also makes clear that the creation of an effective educational
+application in this domain is not only a technical problem. It is just as much a design
+problem as it is a user experience problem. User-centered design is still important as
+students and teachers do not interact with educational technologies in the same way.
+There are differences in competitiveness, motivation, tolerance for public comparison,
+and preferred modes of interaction for learners. In addition, poor usability can ruin
+even a theoretically sound pedagogical model. Recent studies on educational game
+design and development therefore highlight effective products that not only address
+game mechanics, but also center on instructional aims, interaction design, analytics,
+accessibility and iterative evaluation (Rodrigues & Levrini, 2022; Smiderle & de Oliveira,
+2020; Calvo-Morata & Fernandez-Manjon, 2025; Maxim & Arnedo-Moreno, 2025).
+There are also some important risks and constraints to be addressed during development. The novelty effect may lead to excitement in the early stages that disappears
+if the application doesn’t evolve over time. Too much emphasis on points or rankings
+will discourage some learners rather than motivate them. Data-driven personalization
+raises issues of transparency, fairness, privacy and human oversight, particularly when
+AI is part of the equation for adapting or creating feedback. International guidance on
+AI in education emphasise that in education systems have to be held accountable, age
+appropriate and subject to ethics, data use with strong limits on learner safety. (Dichev
+& Dicheva, 2017; Rodrigues & Levrini, 2022; UNESCO, 2023).
+Taken together, these studies reveal an important research and development gap. A
+large body of literature evaluates particular tools, particular interventions, or particular
+3
+
+CHAPTER 1. INTRODUCTION
+
+effects of gamification and digital educational games. Another body of literature studies
+adaptive learning, intelligent tutoring systems, learning analytics, and AI in education.
+Yet fewer works translate these strands into the concrete development of an integrated
+application that combines game-based learning, adaptive intelligence, embedded analytics,
+and user-centered product design within one coherent software artifact. This gap provides
+a strong rationale for the present thesis. The project is therefore positioned not only
+as an educational technology study, but also as a software engineering task: to design
+and develop an application whose features are directly grounded in the best available
+research on AI-enhanced game-based learning (Chiotaki & Karpouzis, 2023; Kabudi &
+Olsen, 2021; Dermeval & Vassileva, 2019; Cuéllar-Rojas & Güemes-Castorena, 2022;
+Calvo-Morata & Fernández-Manjón, 2025; Maxim & Arnedo-Moreno, 2025).
+
+1.1
+
+Research Aim
+
+The aim of this thesis is to design and develop a prototype application for AI-enhanced
+game-based learning that combines game-based interaction, adaptive support, personalized feedback, and learning analytics in a single educational platform.
+
+1.2
+
+Research Objectives
+
+To achieve this aim, the thesis addresses the following objectives:
+• To identify the pedagogical, technical, and ethical requirements of an AI-enhanced
+game-based learning application on the basis of current academic literature.
+• To design the system architecture, user roles, interface logic, and core workflows of the
+application, including student interaction, adaptive task flow, feedback mechanisms,
+and teacher-facing analytics.
+• To implement a functional prototype that includes essential features such as user
+profiles, game-based learning activities, progress tracking, adaptive or AI-supported
+feedback, and configurable motivational mechanics.
+• To conduct a preliminary evaluation of the prototype in terms of usability, perceived
+engagement, and the educational relevance of its AI-enhanced features, using an
+appropriate validation approach such as expert review, pilot testing, or structured
+user feedback.
+4
+
+CHAPTER 1. INTRODUCTION
+
+1.3
+
+Summary
+
+In conclusion, the topic “Development of an Application for AI-Enhanced Game-Based
+Learning” is academically and practically justified by the convergence of several established
+research directions: gamification, digital game-based learning, adaptive educational
+systems, intelligent tutoring, learning analytics, and responsible AI in education. Existing
+studies show that game-based and gamified environments can improve learner engagement
+and, when properly designed, support stronger learning processes. At the same time,
+the literature demonstrates that these benefits are not automatic; they depend on
+personalization, sound pedagogy, meaningful feedback, careful UX design, and ethical
+use of learner data. For this reason, the proposed thesis does not treat gamification
+as a superficial motivational layer. Instead, it approaches application development as
+the creation of an integrated educational system in which AI functions as a support
+layer for adaptation, analytics, and feedback, while game-based interaction provides
+the experiential structure through which learning becomes more active, motivating,
+and responsive to individual learner needs. This makes the project relevant both as a
+diploma application in software development and as a research-grounded contribution to
+contemporary educational technology.
+
+5
+
+Chapter 2
+Literature Review
+2.1
+
+Executive Summary
+
+Recent literature on gamification and game-based learning continually reports increases
+in learner motivation and engagement with games when game mechanics such as points,
+leaderboards, badges, and immediate feedback are utilized. However, the impact on
+measurable learning outcomes is variable and it depends on the educational context, the
+intervention design and its duration. Critical reviews underline the fact that the empirical foundation on long-term impacts is presently heterogeneous and methodologically
+constrained, and thus "surface-level" gamification may create short-term enthusiasm
+without creating sustained gains in competence. (Dichev & Dicheva, 2017)
+Meta-analyses and systematic reviews provide further clarification of the profile of
+these effects. One large meta-analysis focusing on learning outcomes showed a significant
+average effect, but with significant moderators, including the type of user, the subject
+area, design principles, the duration and the learning environment. (Li, Ma, & Shi,
+2023) A meta-analysis on intrinsic motivation found a statistically significant, but small,
+overall effect, as well as greater effects on autonomy and relatedness and very little
+impact on competence. (Li, Hew, & Du, 2024) With regard to academic achievement, a
+meta-analysis of 22 experimental studies of gamification conducted between 2008 and
+2023 found the effect of gamification to be moderately positive (Hedges’s g approximately
+0.782). (Zeng et al., 2024)
+Shifting to the thesis topic of AI enhanced game-based learning, means to jump
+beyond gamification as a simple interface layer to rather a model that is centered around
+data and adaptivity. AI enhanced systems utilize interaction traces and telemetry to
+individualize learning path and content, but a systematic mapping study indicates that
+6
+
+CHAPTER 2. LITERATURE REVIEW
+
+the number of truly implemented AI-adaptive systems is quite small relative to the
+size of the research field. The literature thus calls for the design-oriented studies to
+better connect algorithms, user experience and pedagogical goals in a meaningful way.
+(Kabudi et al., 2021) In AI-enhanced educational games specifically, a systematic review
+of adaptive game-based learning emphasizes the advantages of utilizing performance
+and engagement information in the adaptation process during the intervention, but also
+observes that adaptation is usually confined to a preset set of content, which limits the
+extent of personalization. (Chiotaki et al., 2023)
+For the proposed diploma application, the most promising architecture is one in
+which five layers of core components are integrated together: (1) a practice engine and
+game modes, (2) event collection and teacher analytics dashboards, (3) an AI adaptation
+module based on learner profile, progress, and recommendations, (4) built-in stealth
+assessment based on gameplay traces, and finally, (5) ethics, safety, and privacy safeguards.
+In terms of stealth assessment, deep learning models have been proven to reduce the load
+of manual feature engineering and enhance the accuracy and timeliness of competence
+prediction, even though it has been shown that model interpretability is a major concern.
+(Min et al., 2019/2020) From the point of view of the UX, the literature also indicates that
+there is a lack of robust user centered methods for designing digital educational games
+and suggests structured approaches to co-design and iterative UX research. (Maxim
+& Arnedo-Moreno, 2025) Finally, international advice on generative AI in education
+emphasizes the dangers posed by the regulatory void, threats to data privacy, and a
+human-centered and age-appropriate approach to ethical validation and pedagogical
+design. (UNESCO, 2023)
+
+2.2
+
+Introduction and Scope of the Review
+
+This review is based on an analysis previously prepared for an interactive educational
+platform with gamified modes for teachers and students, where the effects of gamification,
+the risks associated with novelty, the differences in the platform modes and the architecture
+requirements were systematized. Within the present thesis that is narrowed down and
+specific: the object of study is an application for AI-enhanced game-based learning, where
+gamification is not an end in itself but rather an interface and behavioral layer to support
+(a) personalization, (b) adaptive practice, (c) embedded assessment, and (d) analytics
+for pedagogical decision-making.
+In this review gamification is defined as the integration of game elements into an
+7
+
+CHAPTER 2. LITERATURE REVIEW
+
+educational context in an effort to improve engagement. A critical review of the ongoing
+expansion of the interest in this approach in the context of evidence that is still mixed
+with regard to durable learning effects. (Dichev & Dicheva, 2017) At least one line of
+empirical research has shown that even such simple elements as points can modify learner
+behaviour in the testing situation by modifying response speed and subjective appeal,
+though they do not necessarily increase accuracy. (Attali & Arieli-Attali, 2015)
+Within the current review, AI enhancement has the meaning of using learningdata analysis algorithms, varying from statistical modeling to machine learning, for
+the following four goals: (1) adapting the content, difficulty, and hints; (2) predicting
+progress and finding difficulty in learning; (3) automating and enhancing assessment,
+including the stealth assessment of assessment; and (4) helping teachers by dashboards
+and explanations. This kind of approach falls into the larger category of AI-based adaptive
+learning systems that can deliver content based on the individual learner needs. At the
+same time, the systematic mapping study suggests that the number of implemented
+solutions is still relatively small compared to the size of the research field. (Kabudi et al.,
+2021)
+The review is delimited into five interrelated areas: (a) empirical effects of gamification
+and game-based platforms in particular popular quiz platforms; (b) design frameworks
+and factors that influence effectiveness; (c) AI-based adaptivity and personalization in
+game-based learning; (d) assessment and analytics and user experience approaches; and
+(e) ethics and privacy. Priority is given to primary and/or official sources from the list of
+20 works used in this review (15 original sources and 5 more open access sources).
+
+2.3
+
+Gamification and Game Pedagogy Design:
+Theories and Design Frameworks
+
+A practice-oriented strand of literature approaches gamification as the design of activity
+and feedback loops where game mechanics must be related to learning objectives instead
+of acting as decorative features of the interface. The famous five-step design approach goals and constraints, learner profiling, activity and feedback loops, selection of mechanics,
+and data-driven iteration - offers an engineering logic for development one close to product
+design. (Huang & Soman, 2013) Conceptual work on the gamification of educational
+computer games provides a framework for relating gamification principles, system design
+aspects and engagement measures, and thus provides useful vocabulary for design and
+evaluation purposes. (Nah et al., 2013)
+8
+
+CHAPTER 2. LITERATURE REVIEW
+
+Critical reviews of empirical studies highlight that, although there is a general tendency
+to show that motivation and engagement levels are rising, there are still considerable
+mysteries to be aware of: very few comparative studies have been conducted for long
+enough; the findings are highly variable; and there is a tendency that the enthusiasm of
+practitioners outpaces their knowledge of how it works. (Dichev & Dicheva, 2017) This
+leads to an important methodological implication for the thesis: the application should
+provide for measurability and verifiability. In other words, it should feature not only
+game components but also procedures of gathering data, comparison mechanisms such
+as A/B testing or quasi-experiments, transparent rules of rewards, and a clear match
+between game actions and education goals.
+Another major issue of design is the issue of assessment. Experiments on the use of
+points in computer-based testing indicate that gamified incentives can increase response
+speed and may initially make the test more attractive, but do not necessarily increase
+accuracy and the effect can change from one testing session to the next, which indicates
+a possible novelty effect. (Attali & Arieli-Attali, 2015) For designing, this means that
+reward mechanics in an educational game need to be aligned to signs of mastery rather
+than just activity frequency or speed (otherwise the motivation may be to "faster" or
+"more" rather than "more accurate" or "deeper" learning.) (Attali & Arieli-Attali, 2015)
+
+2.4
+
+Gamification Effects on Motivation and Learning
+Outcomes
+
+The general empirical evidence backs the claim that gamification does have positive
+effects, but only under important conditions. A meta-analysis of learning outcomes from
+41 studies, 49 independent samples, and over 5,071 participants demonstrated an overall
+effect size that is strong and statistically significant, but also revealed that the results are
+quite significantly moderated by such intervention characteristics as the duration of the
+gameful experience, the learning environment, design principles, and user type. (Li, Ma, &
+Shi, 2023) This creates a direct requirement for the diploma product: to be configurable in
+such a way that the same core engine is able to support pedagogically different scenarios,
+like supporting intensive drill practice, gap diagnosis or a full mission-based learning
+experience with narrative elements. (Li, Ma, & Shi, 2023)
+If the focus is narrowed down specifically to intrinsic motivation, the picture appears
+more cautious. A meta-analysis of 35 interventions involving approximately 2,500 participants revealed a modest overall impact on intrinsic motivation, along with larger
+9
+
+CHAPTER 2. LITERATURE REVIEW
+
+impacts on autonomy and relatedness and little impact on competence. (Li, Hew, &
+Du, 2024) For AI enhanced game-based learning, this point is very important: AI-based
+personalization should not be about entertaining, but rather actively help learners to
+build their subjective sense of competence through adaptive challenge levels, diagnostic
+feedback and visible progress markers. Otherwise, motivational gains may not be turned
+into a real mastery. (Li, Hew, & Du, 2024)
+Regarding academic achievement, a meta-analysis of experimental studies between
+2008 and 2023 produced a moderately positive effect (Hedges’s gamma of around 0.782)
+and emphasized the need for moderators in choosing game elements for various levels of
+education and contexts. (Zeng et al., 2024) In other words, gamification has some average
+level of effectiveness, but it is not guaranteed to be effective in every particular course
+and in every group of learners. This again reinforces the need for data-driven iteration
+and context sensitive design adaptation in the proposed application. (Zeng et al., 2024)
+The boundaries and dangers of gamification are also borne out by the longitudinal
+findings. A study discussing changes in efficacy effects of gamification over time, by
+analyzing behavioral outcomes over a semester and discussing potential novelty effects
+and the importance of a non-gamified control group to the outcomes of a long-duration
+intervention. (Rodrigues et al., 2022) In addition, experimental evidence on personality
+traits provide evidence that points, badges and rankings may work differently for different
+learners. (Smiderle et al., 2020) For the diploma application this means that personalization should be applied not only at the content level - what is the learner practicing - but
+also at the motivational and UX level, such as the way progress is displayed, which types
+of social comparison are appropriate, and how public leaderboards should be. (Smiderle
+et al., 2020)
+
+2.5
+
+Platform Modes and Functional Patterns: Kahoot!
+and Quizizz as Base Line
+
+Empirical studies of popular quiz-based platforms reveal that even fairly simple forms
+of games, such as quizzes with immediate feedback, can be linked to positive perceptions and/or improvements in selected cognitive and educational indicators provided
+the intervention is of sufficient length and properly embedded in the learning process.
+Experimental work comparing groups who were exposed to a quiz platform for varying
+lengths of time found improvements in attention, critical thinking and related skills, whilst
+
+10
+
+CHAPTER 2. LITERATURE REVIEW
+
+also noting the importance of dosage and balance with other activities. (Aibar-Almazan
+et al., 2024)
+Research on the perceptions of students participating in a quiz-based tool in higher
+education shares that interest in class increased and motivation was higher, but emphasizes
+that the way in-course competition is designed and the specific way it is implemented
+make a difference. (Bicen & Kocakoyun, 2018) Similarly, a study conducted on another
+quiz platform in higher education with a mixed-methods design (survey plus focus groups)
+found increases in engagement, autonomy and self-regulation, as well as the fact that this
+platform is comparatively under-researched in comparison to its more widely discussed
+competitors. (Sitompul et al., 2023)
+Studies in language learning, and reading in particular, demonstrate that the use
+of multiple gamified resources, including different platforms, can be used to support
+reading practice and engagement, although the authors note the need for more research
+on best practices implementation and long-term effects. (Qureshi & Khatoon, 2023) This
+is important for the thesis because the application should support several modes such as
+a synchronous classroom battle and asynchronous self-practice mode; as well as provide
+teacher tools for matching each mode to a particular goal such as diagnosis, consolidation,
+revision or preparation for formal assessment.
+Within these patterns of platforms, the relation between individual elements and
+motivation is especially informative. One study of components of a quiz application
+found statistically significant associations between specific mechanics (e.g. points, level
+of difficulty, avatars, etc.) and extrinsic motivation, as well as reporting the percentage
+of variance accounted for in motivational outcomes. (Razali et al., 2020) This helps to
+support an engineering conclusion: The mechanics in the diploma application should be
+designed as configurable parameters rather than as a rigid, fixed "game shell." (Huang &
+Soman, 2013)
+
+2.6
+
+AI-Enhanced Game-Based Learning: Adaptivity,
+Personalization, and Stealth Assessment
+
+Moving from gamified practice to an AI-enhanced educational game requires a strong
+foundation in research on adaptive game-based learning. A systematic review of adaptive
+game-based learning shows that tailoring content and/or learning experience to the
+learner is usually associated with better retention and a more meaningful experience.
+It also demonstrates the diversity of adaptive approaches: adaptation may affect the
+11
+
+CHAPTER 2. LITERATURE REVIEW
+
+selection and presentation of content, the quantity and type of exercises or levels, or
+the difficulty adjustment based on performance and engagement data. (Chiotaki et al.,
+2023) At the same time, the review notes a common limitation: in many cases, adaptivity
+is implemented as a choice among a finite set of pre-authored content packages, which
+restricts the depth of personalization and often requires grouping learners by metrics.
+(Chiotaki et al., 2023)
+At the broader level of AI-adaptive systems, a systematic mapping study of 147 publications from 2014 to 2020 underscores the central idea of data-driven personalization while
+also observing that genuinely implemented systems are still relatively few. It therefore
+formulates the need for more precise matching between the type of AI intervention and
+the specific educational problem being addressed - in effect, design-to-problem matching.
+(Kabudi et al., 2021) For the thesis, this means that AI should be operationalized through
+clearly defined application functions and testable hypotheses: (1) adaptive difficulty to
+keep learners in an optimal challenge zone, (2) recommendation of tasks or missions
+based on mistakes and solution time, (3) personalized feedback, and (4) prediction of
+learner drop-off risk together with corresponding teacher support signals. (Kabudi et al.,
+2021)
+A key component of AI-enhanced game-based learning is in-game assessment, or stealth
+assessment, in which fine-grained interaction traces are used to infer competence. A study
+published in IEEE Transactions on Learning Technologies describes the DEEPSTEALTH
+framework, which uses deep neural models to infer competence from sequences of actions
+and demonstrates advantages in both predictive accuracy and early detection, while also
+reducing the burden of manual feature engineering. (Min et al., 2019/2020) At the same
+time, the authors emphasize an important limitation: deep models require further work
+on interpretability and explainability, which is directly connected to trustworthiness and
+fairness in educational decision-making. (Min et al., 2019/2020)
+Finally, the AI layer inevitably raises ethical and privacy issues. International guidance
+on generative AI in education emphasizes that the release of new tools is outpacing
+national regulatory frameworks and that, in many countries, the lack of clear regulation
+leaves users’ personal data insufficiently protected. The guidance proposes policy measures including privacy protection requirements, age restrictions, and a human-centered
+approach to ethical validation and pedagogical design. (UNESCO, 2023) In the context
+of the diploma application, this becomes a set of non-functional requirements: data
+minimization, transparency, consent, access control, the ability to explain why the system
+generated a given recommendation, and procedures for monitoring risks such as bias,
+12
+
+CHAPTER 2. LITERATURE REVIEW
+
+data leakage, or inappropriate generated content. (UNESCO, 2023)
+
+13
+
+Chapter 3
+Analysis of Existing Systems and
+Conceptual Framework
+The current landscape of AI-enhanced game-based learning shows a clear movement
+away from simple gamified quizzes and toward adaptive, data-driven, and feedback-rich
+educational environments. Recent research identifies adaptation, personalization, and AIsupported content generation as major directions in this field, while studies on adaptive
+learning technologies stress that classroom usability, teacher acceptance, and pedagogical
+alignment are just as important as technical innovation (Chiotaki et al., 2023; Simon &
+Zeng, 2024). In parallel, recent evidence on intelligent tutoring systems suggests that
+these systems can improve learning attitudes and test scores, although their effects vary
+by design, context, and learner characteristics (Huang et al., 2025).
+
+3.1
+
+Evaluation of Existing Systems
+
+For consistency with the methodology and survey results, the comparative review in this
+chapter focuses on the platforms students reported encountering most often: Kahoot!,
+Quizizz, and Quizlet. Duolingo Max is added as an AI-enhanced comparison point
+because the proposed diploma project goes beyond standard gamification and includes
+AI-supported feedback and adaptation.
+Table 1 summarizes these benchmark systems and explains how each one informs the
+proposed diploma application.
+
+14
+
+CHAPTER 3. ANALYSIS OF EXISTING SYSTEMS AND CONCEPTUAL
+FRAMEWORK
+System
+
+Main strengths
+
+Main limitations
+
+AI/adaptive
+capability
+
+Relevance
+to proposed
+project
+
+Kahoot!
+
+High classroom energy, immediate feedback, familiar live
+quiz format
+
+Quizizz
+
+Works in both live
+and self-paced modes;
+flexible classroom or
+homework practice
+
+Best for shortsession engagement; limited longterm personalization
+Still relies on finite task sets and
+limited learner
+modelling
+
+Useful baseline
+for live classroom
+motivation and
+quick formative
+checks
+Relevant for combining competition with flexible
+delivery formats
+
+Quizlet
+
+Strong retrieval practice, flashcards, repetition, and self-study
+support
+
+Less oriented to
+rich classroom analytics or complex
+game progression
+
+Duolingo
+Max
+
+AI-supported feedback, guided explanations, conversational
+interaction
+
+Domain-specific
+and not designed
+as a general school
+platform
+
+Mostly rulebased gamification rather
+than deep
+adaptation
+Light personalization
+through mode
+and pacing,
+but not a full
+AI loop
+Supports practice adaptation at a basic
+study-workflow
+level
+Clear example of AIenhanced
+feedback inside gamified
+progression
+
+Relevant for memory support, retries, and selfpaced reinforcement
+Shows how AI can
+be embedded into
+learner support
+and adaptive feedback
+
+Kahoot! is the clearest baseline for live, competitive classroom gamification. Its
+strengths lie in short-session engagement, immediate feedback, visible ranking, and fast
+whole-class participation. At the same time, it is better suited to rapid practice and
+motivation than to deep personalization over longer learning trajectories.
+Quizizz is relevant because it supports both classroom competition and more flexible
+self-paced practice. Compared with purely live quiz tools, it better illustrates how the
+same gamified content can be delivered across synchronous and asynchronous learning
+settings. However, its adaptivity still remains limited compared with a fully AI-driven
+learning loop.
+Quizlet is especially useful as a reference for retrieval practice, flashcards, repetition,
+and self-study. It highlights the value of low-stakes memorization support and repeated
+exposure, which are strongly connected to the survey findings on retries, recall, and
+progress-based learning. Its limitation is that it is centered more on study support than
+on integrated learner analytics and adaptive game flow.
+15
+
+CHAPTER 3. ANALYSIS OF EXISTING SYSTEMS AND CONCEPTUAL
+FRAMEWORK
+
+Duolingo Max remains relevant as an AI-enhanced comparison point because it
+demonstrates how gamified progression can be combined with personalized feedback and
+conversational interaction. Even though it belongs to the language-learning domain, it
+shows how AI can support explanation, guided correction, and more responsive learner
+support inside a game-like environment.
+
+3.2
+
+Conceptual Framework
+
+Based on the reviewed literature and benchmark systems, the proposed application should
+be guided by a conceptual framework that combines four interdependent components:
+(1) learner modelling, (2) adaptive game mechanics, (3) AI-assisted content and feedback
+generation, and (4) teacher oversight.
+This framework reflects the literature on adaptive game-based learning, which shows
+that personalization and adaptation are central design priorities in educational games
+(Chiotaki et al., 2023). It also reflects broader evidence that intelligent tutoring systems
+tend to be most effective when feedback, task selection, and support are closely matched
+to learner needs (Huang et al., 2025). At the same time, teacher perspectives must remain
+central, because successful adoption depends on usability, time demands, and institutional
+support (Simon & Zeng, 2024).
+
+3.3
+
+How the Proposed Project Improves on Existing
+Systems
+
+The proposed project improves on existing systems in three important ways. First, unlike
+tools that mainly assist with content or quiz generation, the new application is designed
+around an adaptive learner-centred loop in which performance influences subsequent
+tasks, difficulty level, and feedback. Second, unlike Duolingo Max, which is highly effective
+but domain-specific, the proposed application is intended to support broader educational
+contexts rather than only language learning. Third, unlike early research prototypes,
+the project explicitly balances AI capability with teacher control, explainable feedback,
+and alignment with curricular objectives. As a result, the application aims to move
+beyond isolated AI features toward a more complete and classroom-relevant AI-enhanced
+game-based learning system.
+
+16
+
+CHAPTER 3. ANALYSIS OF EXISTING SYSTEMS AND CONCEPTUAL
+FRAMEWORK
+
+3.4
+
+Methods and Sources Used to Collect Data for the
+Project
+
+Data for the project should be collected through a mixed-source approach. First, a
+desk-based review of open-access journal articles, systematic reviews, and meta-analyses
+should be used to identify best practices in adaptive learning, game-based learning,
+and intelligent tutoring. Second, a comparative review of existing systems should be
+conducted using official product documentation, feature pages, and public descriptions
+for tools such as Kahoot!, Wayground AI, and Duolingo Max. Third, user requirement
+data should be gathered from the target audience through questionnaires, interviews,
+or focus groups with students and teachers. Finally, after prototype development, pilot
+usability testing and system log data should be used to evaluate engagement, completion,
+user satisfaction, and the quality of adaptive responses. This multi-source strategy is
+appropriate because both the technical and human dimensions of adoption are critical in
+adaptive educational technologies (Simon & Zeng, 2024).
+
+3.5
+
+Challenges and Limitations in Obtaining Relevant
+Data
+
+Several challenges may affect data collection for the project. A first limitation is the
+cold-start problem: because the system is new, there may be insufficient learner data
+at the beginning to support robust personalization. A second challenge is access to
+school-based participants, since work with students often requires ethics approval, institutional permission, and informed consent procedures. A third challenge concerns
+teacher participation, because adaptive systems may be perceived as time-consuming or
+technically demanding. Finally, AI-generated educational content cannot be accepted
+without validation. Commercial platforms themselves acknowledge that generated outputs
+may contain inaccuracies, which means that quality assurance through teacher or expert
+review is likely to be necessary during early development and testing phases (Wayground,
+2025a).
+
+17
+
+Chapter 4
+Methodology and Updated Survey
+Analysis
+This chapter presents the revised methodology and findings based on 100 survey responses.
+Survey instrument: online questionnaire administered through Google Forms.
+Dataset summary: 100 respondents completed the closed-ended survey; the first
+two open-ended prompts also received 100 responses each, while the final improvement
+question received 81 responses.
+
+4.1
+
+Introduction
+
+Gamified learning platforms integrate elements such as points, badges, levels, leaderboards,
+timers, and immediate feedback into learning activities. These tools are increasingly
+common in both school and university settings because they can make routine practice
+feel more interactive, competitive, and enjoyable. Platforms such as Kahoot!, Quizizz,
+and Quizlet are often used to increase attention, participation, and short-cycle practice
+during lessons.
+The underlying idea of gamification is not simply to entertain students, but to
+align game mechanics with educational goals. When designed well, these mechanics can
+encourage repetition, persistence, and quick correction of mistakes. At the same time,
+research and classroom experience suggest that gamification is most effective when it
+supports learning rather than replacing it. Competition, time pressure, and rewards can
+motivate some students, but they may also distract others if the activity becomes too
+focused on winning rather than understanding.
+
+18
+
+CHAPTER 4. METHODOLOGY AND UPDATED SURVEY ANALYSIS
+
+4.2
+
+Purpose and Research Focus
+
+The purpose of this updated study was to examine how students perceive gamified
+learning after the survey dataset expanded to 100 respondents. The revised version
+updates the participant profile, descriptive statistics, and qualitative analysis so that the
+methodology and results reflect the larger sample rather than the earlier smaller dataset.
+The study addressed two main questions:
+• Does the use of gamified platforms increase student engagement and participation?
+• Do students believe these platforms improve their learning, memory, and assessment
+performance?
+By combining quantitative survey results with open-ended responses, the report aims to
+identify which gamification elements students value most, which elements create tension
+or mixed reactions, and what changes students would make to improve classroom use.
+
+4.3
+
+Methodology
+
+4.3.1
+
+Survey Design
+
+A cross-sectional survey was used to collect student perceptions of gamified learning.
+The questionnaire included four parts: (a) demographic information, (b) exposure to
+gamified platforms and common features, (c) Likert-scale statements on engagement and
+perceived learning outcomes, and (d) open-ended questions asking students to describe
+helpful features, concrete learning experiences, and suggested improvements.
+Each attitudinal statement used a 5-point Likert scale ranging from 1 (strongly
+disagree) to 5 (strongly agree). The updated report keeps the same instrument logic as
+the earlier draft, but all narrative interpretation has been recalculated for the expanded
+dataset of 100 respondents.
+
+4.3.2
+
+Participants
+
+A total of 100 respondents completed the closed-ended portion of the survey. The sample
+was dominated by bachelor-level students and concentrated in the typical university age
+range, especially 18-20 and 20-22 years old. Participation was voluntary and anonymous,
+allowing students to answer freely about both positive and negative aspects of gamified
+learning.
+19
+
+CHAPTER 4. METHODOLOGY AND UPDATED SURVEY ANALYSIS
+
+Open-ended participation varied slightly by question. The first prompt on helpful
+features received 100 responses, the second prompt on memorable learning moments also
+received 100 responses, and the final prompt on suggested changes received 81 responses.
+This means the qualitative section combines full-response and partial-response items.
+
+4.3.3
+
+Data Collection
+
+The survey was distributed online through Google Forms. Responses were collected in
+a format that automatically generated summary charts for the closed-ended questions.
+These updated Google Forms screenshots were used as the visual basis for the figures
+embedded in this report. Because the instrument was completed online, students could
+respond conveniently and with a degree of privacy that may improve candor in self-report
+data.
+
+4.3.4
+
+Data Analysis
+
+Quantitative data were analyzed using descriptive statistics, primarily frequencies and
+percentages. The interpretation focuses on overall patterns, such as the proportion of
+positive responses (Agree + Strongly Agree), neutral responses, and negative responses
+(Disagree + Strongly Disagree). No inferential statistics were applied because the goal of
+the study was descriptive rather than causal.
+Qualitative responses were reviewed using a light thematic approach. Recurring
+patterns were grouped into broad themes such as immediate feedback, progress/rewards,
+competition, repetition/retries, and suggestions for classroom improvement. To keep the
+report readable, the qualitative appendix presents a condensed thematic coding table
+with representative excerpts rather than reproducing every raw screenshot page.
+
+4.4
+
+Results
+
+4.4.1
+
+Demographics and General Exposure
+
+The updated sample remains strongly university-centered. As shown in Figure 1, 61% of
+respondents were aged 18-20 and another 32% were aged 20-22. Only a small minority
+fell outside those ranges, which means the findings mainly reflect the views of typical
+undergraduate-age students. Gender distribution was moderately imbalanced but still
+broad enough to reflect mixed classroom perspectives: 58% identified as female and 42%
+20
+
+CHAPTER 4. METHODOLOGY AND UPDATED SURVEY ANALYSIS
+
+as male. Study level was overwhelmingly bachelor-level (94%), with only a few master’s,
+PhD, and school-student respondents.
+Gamified activities were present in university courses, but not usually on a daily basis.
+Figure 1 also shows that 37% encountered them 1-3 times per month, 31% less than once
+a month, 21% one to two times per week, and 5% more than three times per week, while
+6% reported never encountering them. This suggests that gamification is already familiar
+to most students, but its use is still periodic rather than fully integrated into everyday
+instruction.
+
+Figure 4.1: Participant profile: age, gender, study level, and frequency of gamified-tool
+use.
+Figure 2 shows which platforms and mechanics students encounter most often. Kahoot!
+was by far the most familiar platform (81%), followed by Quizizz (64%) and Quizlet
+(56%). Most students associated gamification with live, timed, whole-class activities
+during lectures or seminars (63%), while self-paced practice accounted for 17% and a
+balanced mix for 16%. The most commonly seen mechanics were points/badges/levels
+(73%), public leaderboards (60%), and timers or speed bonuses (49%).
+The exposure pattern is important because it explains the rest of the results: many
+students are primarily experiencing gamification through fast-paced classroom quizzes
+rather than through slower, mastery-based systems.
+21
+
+CHAPTER 4. METHODOLOGY AND UPDATED SURVEY ANALYSIS
+
+Figure 4.2: Exposure to gamified tools, usage mode, and commonly encountered features.
+
+4.4.2
+
+Engagement, Attention, and Learning Outcomes
+
+The central Likert-scale results were generally positive. As Figure 3 indicates, 56% of
+students agreed or strongly agreed that they pay more attention during gamified activities,
+22
+
+CHAPTER 4. METHODOLOGY AND UPDATED SURVEY ANALYSIS
+
+and 67% agreed or strongly agreed that they participate more actively when such tools
+are used. Immediate feedback stood out as especially valuable: 69% agreed or strongly
+agreed that it helps them understand mistakes.
+The effect of competition-based mechanics was more mixed. Public leaderboards
+motivated 55% of respondents, but 25% were neutral and 20% negative. Timers produced
+the most divided pattern: only 43% agreed that timers help them focus, while 33%
+disagreed and 24% stayed neutral. This indicates that time pressure can energize some
+students but can also create stress or reduce depth of thinking for others.
+Perceived learning outcomes were still mostly favorable. Sixty-five percent agreed
+or strongly agreed that they remember course content better after using these tools,
+and 55% felt their assessment performance improved, although 29% were neutral on
+the performance question. Taken together, the data suggest that students are more
+confident about gamification’s influence on engagement and memory than on measurable
+assessment gains.
+
+Figure 4.3: Student ratings of engagement and perceived learning outcomes on the 5-point
+Likert scale.
+
+4.4.3
+
+Preferred Feature Design
+
+When students rated specific mechanics directly, the most positively viewed options
+were self-paced mode (66% positive), live whole-class mode (64%), points/badges/levels
+(64%), and the ability to retry items (62%). Immediate feedback with explanations also
+remained strong at 59% positive, which reinforces the idea that gamification works best
+when it supports error correction and repeated practice.
+23
+
+CHAPTER 4. METHODOLOGY AND UPDATED SURVEY ANALYSIS
+
+Again, speed-based mechanics were more controversial than supportive. Timers and
+speed bonuses received only 56% positive ratings and also attracted a relatively high share
+of negative responses. This pattern fits the qualitative comments, where students often
+said they liked challenge and competition, but not when speed became more important
+than understanding.
+
+Figure 4.4: Perceived usefulness of specific gamification features.
+Leaderboard preferences were also nuanced. Figure 5 shows that 40% said either
+public or private ranking is fine, 38% preferred a public class leaderboard, 20% preferred
+private progress only, and just 2% rejected leaderboards entirely. This means students
+do not uniformly oppose competition, but many want flexibility in how visible that
+competition is.
+A separate comparison question also showed that 41% spend more focused time on
+the task during gamified activities than in regular lessons, 29% spend about the same
+amount of time, 23% spend less focused time, and 7% were not sure. This again points
+to a positive overall effect, but not a universal one.
+
+24
+
+CHAPTER 4. METHODOLOGY AND UPDATED SURVEY ANALYSIS
+
+Figure 4.5: Leaderboard preferences and comparison of focus time during gamified versus
+regular lessons.
+
+4.4.4
+
+Qualitative Insights from Open-Ended Responses
+
+The open-ended responses add important detail to the numerical patterns. Four recurring
+themes were especially visible across the screenshots.
+Immediate feedback as the strongest learning support. Students repeatedly said
+that instant correction helps them understand mistakes on the spot. Several responses
+emphasized that seeing the correct answer immediately, or receiving a short explanation
+25
+
+CHAPTER 4. METHODOLOGY AND UPDATED SURVEY ANALYSIS
+
+after an error, makes learning faster and more memorable. In other words, feedback was
+not just motivating; it was instructional.
+Progress, points, and rewards as motivational structure. Many students connected
+learning with visible progress markers such as points, levels, badges, and progress bars.
+These features were described as making learning feel structured, encouraging persistence,
+and reducing boredom. Respondents often used phrases such as "seeing my progress" or
+"leveling up," which suggests that progress visibility matters as much as the reward itself.
+Competition and challenge help—but only up to a point. A number of students said
+competition pushes them to focus, especially in platforms like Kahoot! and Quizizz.
+They mentioned leaderboards, time pressure, and the wish to beat their previous score.
+However, other comments warned that too much emphasis on speed can shift attention
+away from understanding. This helps explain why timers and leaderboards received more
+mixed ratings than feedback and retries.
+Repetition, retries, and active recall improve memory. Students frequently referred to
+flashcards, repeated questions, retries, hints, and pre-exam quiz sessions as helpful because
+they force active recall. Examples included learning vocabulary, grammar, formulas,
+history dates, and programming concepts. The common pattern was that gamified tools
+help most when they create short cycles of practice, correction, and repetition.
+The final open-ended question, answered by 81 students, focused on how teachers
+could improve their use of these tools. The most common suggestions were to add
+explanations after each question, reduce speed pressure, use gamified tools more often
+but more purposefully, include more team-based activities, and personalize difficulty so
+that students remain challenged without feeling overwhelmed.
+These comments are especially important because they show that students are
+not asking for "more game" in a superficial sense. Instead, they are asking for better
+instructional design: more debriefing, more learning-oriented feedback, less guessing for
+points, and a better balance between competition and mastery.
+A condensed thematic summary of the open-ended responses is presented in Table 2
+to keep the qualitative findings inside the methodology chapter rather than in a separate
+appendix.
+
+26
+
+CHAPTER 4. METHODOLOGY AND UPDATED SURVEY ANALYSIS
+
+Theme
+
+What students
+emphasized
+
+Design implication for the application
+
+Immediate feedback
+
+Students repeatedly valued instant
+correction, short
+explanations, and
+the chance to understand mistakes
+immediately.
+Points, levels,
+badges, and visible progress were
+motivating when
+they reflected real
+effort rather than
+empty competition.
+Leaderboards and
+timed challenges
+motivated some
+learners but discouraged others
+when overused.
+Students associated
+repeated attempts,
+flashcards, and
+practice loops with
+better retention.
+
+Each task should return feedback quickly
+and explain incorrect answers in a concise
+way.
+
+Progress and rewards
+
+Competition in moderation
+
+Retries and active
+recall
+
+4.5
+
+Reward mechanics should reinforce mastery, persistence, and completion of learning
+goals.
+
+Competition should be configurable, with
+public/private ranking options and selfpaced alternatives.
+
+The application should support repetition,
+retry logic, and low-stakes practice before
+assessment.
+
+Discussion
+
+The updated dataset strengthens the original interpretation rather than reversing it.
+Across 100 respondents, gamification appears to be a broadly positive support for
+attention, participation, and short-term learning confidence. Students clearly associate
+gamified activities with higher energy, more active recall, and better awareness of mistakes.
+At the same time, the larger sample also makes the limits of gamification more visible.
+Not every student experiences competition in the same way, and speed-based design
+remains the clearest source of mixed reactions. The results therefore support a balanced
+model: gamification works best when it combines motivation with explanatory feedback,
+retries, and meaningful practice rather than relying only on ranking and time pressure.
+Another important finding is that students are comfortable with multiple delivery
+27
+
+CHAPTER 4. METHODOLOGY AND UPDATED SURVEY ANALYSIS
+
+formats. Self-paced mode and live whole-class mode both received strong support, which
+suggests that teachers do not need a single rigid template. Instead, they can adapt the
+format to the lesson goal—for example, fast group reviews before an exam, or slower
+self-paced practice for consolidation and homework.
+
+4.6
+
+Limitations
+
+This study has several limitations. First, it relies on self-reported perception rather than
+direct performance data, so students’ impressions of improved learning may not always
+match measured achievement. Second, the sample is a convenience sample rather than
+a random one, which limits generalizability. Third, the results largely reflect university
+students—especially bachelor-level respondents—so they should be extended to other
+populations with caution.
+In addition, the open-ended responses were analyzed from Google Forms screenshots
+rather than from a fully exported spreadsheet. For that reason, the qualitative coding
+should be read as descriptive and illustrative rather than as a line-by-line exhaustive
+coding of every response.
+
+4.7
+
+Summary
+
+The revised survey analysis based on 100 responses confirms that gamified learning is
+widely viewed as beneficial for student engagement. Most respondents reported paying
+more attention, participating more actively, and remembering content better when
+gamified tools were used.
+However, the findings also make clear that not all game mechanics are equally effective.
+Immediate feedback, retries, progress tracking, points, and flexible pacing were the most
+consistently valued features. By contrast, timers and speed-focused competition produced
+more divided reactions.
+Overall, the updated methodology and results suggest that gamification is most
+effective when it is used as a structured learning aid rather than as entertainment alone.
+Students respond best when the activity helps them practice, understand mistakes quickly,
+track improvement, and reflect on answers after the game. For teachers, the implication is
+straightforward: design gamified activities around learning goals first, and use competition
+only when it supports—not replaces—understanding.
+
+28
+
+Chapter 5
+MVP, UML Diagrams, and Project
+Architecture
+This chapter presents the Minimum Viable Product (MVP) of the proposed AI-Enhanced
+Game-Based Learning Application and explains the UML and architectural diagrams
+used to describe the system structure and behavior. The chapter demonstrates the core
+features of the prototype and provides annotated visual models of user interactions,
+service architecture, system behavior, and domain entities.
+
+5.1
+
+Minimum Viable Product (MVP) Features
+
+The MVP focuses on the minimum set of features required to demonstrate a functional
+AI-enhanced learning application. The first version of the system allows students to
+access learning content, take quizzes, request AI assistance during learning activities,
+and monitor their progress through gamification features. Teachers can publish course
+content, assign quizzes, and review class-level analytics, while administrators manage
+user access and safety-related platform settings.
+
+29
+
+CHAPTER 5. MVP, UML DIAGRAMS, AND PROJECT ARCHITECTURE
+
+MVP Feature
+
+Primary User
+
+Purpose
+
+User authentication
+and role-based access
+Course and lesson
+browsing
+
+Student, Teacher,
+Administrator
+Student
+
+Quiz attempt lifecycle
+AI assistance during
+learning
+Progress and gamification tracking
+Content publication
+and quiz assignment
+Analytics and monitoring
+Access control and
+safety policy management
+
+Student
+
+Provides secure login and separates user
+responsibilities in the system.
+Enables learners to access available educational content before starting game-based
+tasks.
+Allows students to start a quiz, submit answers, and receive immediate results.
+Supplies hints, explanations, and feedback to
+support adaptive learning.
+Shows progress, rewards, and engagement
+indicators such as points or levels.
+Allows teachers to create learning materials
+and distribute tasks to learners.
+Provides insight into learner performance
+and overall class progress.
+Supports user-role management and AIrelated operational control.
+
+Student
+Student
+Teacher
+Teacher
+Administrator
+
+30
+
+CHAPTER 5. MVP, UML DIAGRAMS, AND PROJECT ARCHITECTURE
+
+5.2
+
+Use Case Diagram
+
+Figure 5.1: Use Case Diagram of the Proposed AI-Enhanced Game-Based Learning
+Application
+
+31
+
+CHAPTER 5. MVP, UML DIAGRAMS, AND PROJECT ARCHITECTURE
+
+Explanation. The use case diagram identifies the main actors of the system and summarizes
+how each role interacts with the application. The student is the primary user and is
+responsible for browsing learning materials, starting quiz attempts, submitting answers,
+requesting AI help, and viewing progress. The teacher manages content publication and
+learning analytics, while the administrator controls access roles and AI safety settings.
+This diagram clarifies the functional scope of the MVP and shows that the system
+combines learning, gamification, and AI-supported assistance within one application.
+Student-related use cases represent the core learner journey in the system.
+Teacher-related use cases focus on instructional management and monitoring.
+Administrator-related use cases support governance, access control, and safe system
+operation.
+
+32
+
+CHAPTER 5. MVP, UML DIAGRAMS, AND PROJECT ARCHITECTURE
+
+5.3
+
+High-Level System Architecture
+
+Figure 5.2: High-Level System Architecture of the Proposed AI-Enhanced Game-Based
+Learning Application
+Explanation. The architecture diagram presents the major technical layers of the application. The Mobile App communicates with the API Gateway / BFF, which acts as
+the main entry point and routes requests to the IAM Service, Content Service, Quiz
+Engine, and AI Tutor Gateway. Learning content is stored in Firestore and S3 / MinIO,
+while quiz submissions are processed by the Quiz Engine and published to the Event Bus.
+Event-driven updates are then handled by the Gamification, Analytics, and Notification
+services. AI requests are isolated in the AI Tutor Gateway and forwarded to the n8n
+Orchestrator and the external LLM Provider API. This separation of concerns improves
+maintainability, supports scalability, and keeps AI integration controlled and auditable.
+
+33
+
+CHAPTER 5. MVP, UML DIAGRAMS, AND PROJECT ARCHITECTURE
+
+The API Gateway / BFF centralizes client access and simplifies communication with
+backend services.
+The Event Bus enables asynchronous processing for analytics, rewards, and notifications.
+The AI Tutor Gateway isolates external AI calls from the rest of the application logic.
+
+5.4
+
+Sequence Diagram: Quiz Submission and Result
+Processing
+
+Figure 5.3: Sequence Diagram of Quiz Submission and Asynchronous Update Processing
+Explanation. This sequence diagram explains how the system handles a student quiz
+submission. The student sends answers through the mobile application, the API Gateway
+/ BFF forwards the request after user verification, and the Quiz Engine validates the
+attempt, computes the score, and stores the result in the database. After the score
+34
+
+CHAPTER 5. MVP, UML DIAGRAMS, AND PROJECT ARCHITECTURE
+
+is returned to the student, the system publishes an event that triggers asynchronous
+updates in the Gamification and Analytics services. The diagram demonstrates that the
+result is delivered quickly on the main interaction path, while secondary processes are
+handled separately in the background.
+User verification occurs before the submission is processed by the quiz logic.
+The Quiz Engine is responsible for validation, scoring, and persistence of results.
+Gamification and analytics are updated asynchronously after the student receives the
+result.
+
+35
+
+CHAPTER 5. MVP, UML DIAGRAMS, AND PROJECT ARCHITECTURE
+
+5.5
+
+Sequence Diagram: AI Help Request and
+Safety-Controlled Response
+
+Figure 5.4: Sequence Diagram of AI Help Request, Validation, and Fallback Handling
+
+36
+
+CHAPTER 5. MVP, UML DIAGRAMS, AND PROJECT ARCHITECTURE
+
+Explanation. This sequence diagram shows how AI support is requested and safely
+returned to the learner. A student requests help through the application, the request is
+verified by the IAM layer, and the AI Tutor Gateway evaluates policy, rate-limit, and
+cache conditions before invoking the AI workflow. If a valid cached answer exists, it is
+returned directly; otherwise, the gateway starts a new workflow through n8n and the
+LLM provider. The diagram also includes a provider-failure branch that produces a safe
+fallback response. This behavior illustrates that the AI component is not only intelligent
+but also controlled, logged, and fault-tolerant.
+Policy and cache checks act as a control layer before the external AI service is used.
+AI interactions are logged for traceability and later analysis.
+Fallback handling allows the system to remain responsive even when the provider
+fails.
+
+37
+
+CHAPTER 5. MVP, UML DIAGRAMS, AND PROJECT ARCHITECTURE
+
+5.6
+
+Class Diagram
+
+Figure 5.5: Class Diagram of the Main Domain Entities in the Proposed Application
+Explanation. The class diagram describes the main structural entities of the system and
+their relationships. The User class is specialized into Student, Teacher, and Adminis38
+
+CHAPTER 5. MVP, UML DIAGRAMS, AND PROJECT ARCHITECTURE
+
+trator, reflecting different access rights and responsibilities. The educational domain is
+represented by Course, Lesson, Quiz, and Question, while learner activity is modeled
+through Attempt and AttemptResult. GamificationProfile stores engagement-related
+data, and AIInteraction records AI-assisted exchanges connected to the learning process.
+The diagram clarifies the conceptual data structure of the application and shows how
+pedagogical content, learner actions, and AI-supported behavior are integrated in a single
+domain model.
+Inheritance is used to distinguish different user roles while keeping a shared base
+profile.
+Course, lesson, quiz, and question classes represent the instructional content structure.
+Attempt, result, gamification, and AI interaction classes represent learning activity
+and system feedback.
+Overall, the MVP and the accompanying UML and architecture diagrams demonstrate
+that the proposed application is feasible, logically structured, and aligned with the thesis
+goal of developing an AI-enhanced game-based learning system. Together, the diagrams
+explain who uses the system, how the major components interact, how learning and AI
+flows operate, and which core entities are required to implement the solution.
+
+39
+
+Chapter 6
+Technology Comparison and Technology
+Used
+This chapter compares the main technologies considered for the proposed platform
+and justifies the final stack selected for the MVP. The discussion is organized around
+the project’s practical requirements: a mobile-first user experience, low-latency quiz
+submission, controlled AI assistance, maintainable service boundaries, and implementation
+feasibility within an academic project scope.
+
+6.1
+
+Technology Selection Criteria
+
+The technology stack was not chosen only on the basis of popularity. Instead, it was
+selected according to the technical and educational characteristics of the project. The
+proposed application must support a mobile client, structured learning content, quiz
+attempt processing, gamification updates, teacher analytics, and AI-assisted feedback.
+In addition, the platform has to remain secure, auditable, and realistic to implement
+within one academic term. Therefore, the comparison focused on six practical criteria:
+performance, scalability, ease of development, maintainability, integration capability, and
+security/privacy support.
+
+40
+
+CHAPTER 6. TECHNOLOGY COMPARISON AND TECHNOLOGY USED
+
+Table 6.1: Technology Selection Criteria
+Criterion
+
+Importance for the Project
+
+Performance
+
+The system must keep quiz submission fast and predictable, while
+AI help should remain responsive or degrade safely under external
+model latency.
+AI assistance and analytics workloads should scale independently
+from the critical quiz submission flow.
+The stack should allow rapid MVP implementation by a small
+student team and support short iteration cycles.
+The project should support future changes in scoring logic, gamification rules, and AI providers without major rewrites.
+Chosen tools should integrate well across mobile UI, backend
+APIs, authentication, storage, and external AI services.
+Because the platform may process student data and AI interactions, the stack must support authentication, access control,
+auditability, and controlled external communication.
+
+Scalability
+Ease of development
+Maintainability
+Integration capability
+Security and privacy
+
+6.2
+
+Comparison of Main Technologies
+
+The project presentation defines the planned stack as Flutter for the frontend, Python
+with FastAPI for the backend, Google Firebase for database and authentication, LLM API
+with n8n for the AI assistant, S3/MinIO for learning materials, and Git, Docker, pytest,
+and Flutter tests for engineering support. The architecture package further clarifies why
+this stack fits a mobile-first, service-oriented design with a controlled AI gateway and
+asynchronous downstream processing. The following comparison summarizes the final
+decisions before each technology is discussed in more detail.
+
+41
+
+CHAPTER 6. TECHNOLOGY COMPARISON AND TECHNOLOGY USED
+
+Table 6.2: Summary of Technology Comparison and Final Choice
+Layer
+
+Options Compared
+
+Perf.
+
+Scale
+
+Selected
+
+Frontend
+
+Flutter / React Native / Native Android
+FastAPI / Django
+REST / Node.js (Express or NestJS)
+Firebase (Firestore +
+Auth) / PostgreSQL
++ custom auth / Supabase
+LLM API + n8n /
+direct LLM calls in
+backend / custom orchestration framework
+S3/MinIO / Firebase
+Storage / local server
+storage
+
+High
+
+High
+
+Flutter
+
+High
+
+High
+
+FastAPI
+
+High
+
+Medium-High
+
+Firebase
+
+Medium-High
+
+High
+
+LLM API + n8n
+
+High
+
+High
+
+S3/MinIO
+
+Backend
+API
+Data +
+Auth
+
+AI layer
+
+Storage
+
+6.3
+
+Frontend Technology: Flutter
+
+For the client layer, the most relevant alternatives were Flutter, React Native, and
+native Android development. Native Android can offer strong device-level control and
+platform-specific optimization, but it would narrow the MVP to one operating system
+and increase implementation effort. React Native is also a cross-platform option, but
+it depends more heavily on the JavaScript ecosystem and typically requires additional
+integration effort for highly consistent UI behavior across screens.
+Flutter was selected because it fits the mobile-first nature of the project while allowing
+the team to build one coherent interface in a single codebase. This is especially useful for
+a gamified educational platform, where visual consistency, smooth navigation, animated
+progress indicators, and reusable UI components are important. Flutter also matches
+the project plan, where frontend work focuses on core screens, user flows, gamification
+UI, and the AI assistant interface. In practical terms, Flutter offers a good balance
+between development speed and interface quality, making it more suitable than fully
+native development for a semester-bounded MVP.
+
+42
+
+CHAPTER 6. TECHNOLOGY COMPARISON AND TECHNOLOGY USED
+
+6.4
+
+Backend and API Layer: Python with FastAPI
+
+At the backend level, the main alternatives were FastAPI, Django REST Framework, and
+a Node.js-based API framework such as Express or NestJS. Django REST Framework is
+mature and feature-rich, but it is comparatively heavier for a project whose main need is
+a clean API layer and orchestration of separate services. A Node.js stack is also viable,
+especially for event-driven systems, but it would split the technology focus between
+Python-oriented AI work and JavaScript-oriented backend work.
+FastAPI was chosen because it is lightweight, well-suited to REST API development,
+and fits naturally with Python-based AI integration. In this project, the API Gateway/BFF is responsible for request validation, orchestration of internal service calls, and
+versioned client-facing APIs. FastAPI supports this role well, while keeping the backend
+simple enough for rapid development and testing. Its compatibility with pytest further
+supports maintainability and automated validation. The selection therefore improves
+developer productivity and reduces friction between backend development and AI-related
+modules.
+
+6.5
+
+Database and Authentication: Firebase / Firestore
+/ Firebase Auth
+
+For persistent data and identity management, three broad options were considered:
+Firebase with Firestore and Firebase Authentication, a traditional relational database
+such as PostgreSQL with custom authentication, and a managed backend platform such
+as Supabase. A PostgreSQL-based design provides strong relational guarantees and
+advanced querying, but it also increases setup and operational complexity, especially
+when combined with custom authentication and role handling. Supabase is attractive as
+a managed platform, but in the current project materials Firebase is already treated as
+the trusted identity provider and primary database, which aligns more directly with the
+chosen architecture.
+Firebase was selected because it simplifies MVP delivery while still supporting the
+project’s main requirements. Firebase Authentication provides token-based identity flows,
+while Firestore can support structured educational data, progress records, and servicespecific adapters. This choice also fits the architecture package, where IAM verifies
+Firebase tokens and where Firestore is accessed through repository adapters rather than
+being exposed directly to all services. The result is a stack that is easier to implement
+43
+
+CHAPTER 6. TECHNOLOGY COMPARISON AND TECHNOLOGY USED
+
+quickly than a fully self-managed relational setup, while still leaving room for later
+abstraction and migration if needed.
+
+6.6
+
+AI Integration and Orchestration: LLM API with
+n8n
+
+The AI layer is one of the most distinctive parts of the project, so several integration
+patterns were possible. The simplest option would be to call an LLM API directly from
+the backend. Another option would be to adopt a heavier orchestration framework and
+embed all prompt routing and workflow logic directly in application code. The project
+instead selected a hybrid model: a dedicated AI Tutor Gateway in the backend, combined
+with n8n for workflow orchestration and an external LLM API for generation.
+This choice is justified by both system quality requirements and educational safety
+needs. The architecture documents emphasize that only the AI Tutor Gateway should
+communicate with external AI systems, and that AI help must support safety filters,
+rate limits, caching, logging, and fallback behavior. n8n is useful in this context because
+it externalizes prompt flows and routing logic, making the AI pipeline easier to iterate on
+without tightly coupling every change to core backend code. The final arrangement - AI
+Tutor Gateway plus n8n plus LLM API - provides enough flexibility for hint generation,
+explanation flows, and adaptive feedback while keeping the rest of the system protected
+from direct model dependency.
+
+6.7
+
+File Storage: S3/MinIO
+
+The platform needs separate handling for media assets and learning materials, such as
+uploaded files, images, or attachments. The main alternatives were S3/MinIO, Firebase
+Storage, and local server storage. Local storage is the least suitable option because it is
+not robust for deployment, scaling, or multi-service access patterns. Firebase Storage
+would integrate well with the Firebase ecosystem, but the architecture package already
+assumes storage abstraction through a dedicated content/storage adapter rather than
+tightly coupling all files to a single managed backend vendor.
+S3/MinIO was selected because it fits that adapter-based architecture and cleanly
+separates structured data from file storage. In practice, metadata can remain in the
+content domain, while large files are stored in an object store designed for that purpose.
+44
+
+CHAPTER 6. TECHNOLOGY COMPARISON AND TECHNOLOGY USED
+
+This improves maintainability, reduces schema pollution in the main database, and offers
+flexibility between cloud and self-hosted deployment models. For an academic MVP,
+this is a pragmatic middle path: simple enough to use, but architecturally cleaner than
+keeping all binary assets inside the core database layer.
+
+6.8
+
+Testing, Version Control, and Deployment
+Support
+
+The support toolchain is also part of the technology decision. The project presentation
+identifies Git and Docker as core engineering tools, with pytest for backend testing and
+Flutter tests for UI and integration checks. Alternative approaches such as purely manual
+testing or unmanaged environment setup would be faster in the short term, but they
+would reduce reproducibility and make integration problems harder to detect.
+The selected toolchain strengthens the overall quality of the project. Git supports
+collaboration, rollback, and branch-based feature development. Docker improves environment consistency across developer machines and future deployment targets. pytest
+is appropriate for validating backend APIs, scoring logic, and internal service behavior,
+while Flutter tests are suitable for checking UI flows and client-side correctness. Together,
+these tools increase reliability without adding disproportionate complexity, which makes
+them highly appropriate for a student team delivering a working MVP.
+
+6.9
+
+Rationale for the Final Technology Stack
+
+The final technology stack is coherent because each selected tool supports a specific
+architectural responsibility instead of duplicating the role of another layer. Flutter
+addresses the mobile user experience; FastAPI supports the public API and service
+orchestration; Firebase handles authentication and structured cloud data; S3/MinIO
+stores larger learning materials; n8n and the LLM API enable flexible AI workflows; and
+Docker, Git, pytest, and Flutter tests support reproducible development and validation.
+This separation of concerns is important for a project that combines standard learning
+workflows with AI-enhanced behavior.
+Another reason for these choices is that they align with the project architecture. The
+Mobile App communicates only with the API Gateway/BFF. Quiz submission remains a
+protected core flow, while gamification and analytics are updated asynchronously. The
+45
+
+CHAPTER 6. TECHNOLOGY COMPARISON AND TECHNOLOGY USED
+
+AI Tutor is isolated behind a dedicated gateway rather than being embedded across
+the whole backend. Such design decisions improve maintainability and allow future
+modifications - for example, replacing a database adapter or changing the external model
+provider - without forcing a full redesign of the system.
+From a practical perspective, the selected technologies also match the team’s work
+allocation shown in the project plan. Frontend work is centered on Flutter screens and
+the gamification UI, backend work is centered on FastAPI, authentication, and logic,
+and AI work is centered on prompt design, hint generation, adaptive feedback, and LLM
+integration. Because the technologies map clearly to team responsibilities, the stack is
+not only technically appropriate but also organizationally realistic for MVP delivery.
+Table 6.3: Final Technology Stack Used in the MVP
+Area
+
+Technology
+
+Purpose in the Project
+
+Frontend
+
+Flutter (Dart)
+
+Backend API
+
+Python + FastAPI
+
+Authentication
+
+Firebase Auth
+
+Database
+
+Firestore
+
+AI assistant
+
+LLM API + n8n
+
+File storage
+
+S3 / MinIO
+
+Testing
+
+pytest + Flutter
+tests
+Git + Docker
+
+Cross-platform mobile UI, quiz flows, gamification interface, teacher dashboard views.
+Client-facing API, request validation, orchestration, service interaction, versioned
+endpoints.
+Token-based identity management and
+trusted login flows.
+Structured application data, profiles, content, attempts, gamification, analytics read
+models.
+Hint generation, explanation flows, adaptive
+feedback, orchestration of AI prompts and
+routing.
+Storage of files, media assets, and learning
+materials outside the main database.
+Backend validation, UI and integration
+checks.
+Version control, collaboration, environment
+consistency, and containerized deployment
+support.
+
+Engineering support
+
+6.10
+
+Summary
+
+Overall, the chosen technologies are suitable for the development of an AI-enhanced
+game-based learning application because they support the project’s educational goals
+46
+
+CHAPTER 6. TECHNOLOGY COMPARISON AND TECHNOLOGY USED
+
+and software quality requirements at the same time. Flutter enables a consistent and
+engaging mobile interface, FastAPI provides a clean and efficient backend layer, Firebase
+reduces authentication and database complexity for the MVP, n8n with an LLM API
+supports flexible AI tutoring workflows, and S3/MinIO keeps file storage separate from
+structured application data. The supporting toolchain of Git, Docker, pytest, and Flutter
+tests further strengthens implementation quality. As a result, the final stack is not only
+technically defensible, but also realistic, maintainable, and well aligned with the scope of
+the diploma project.
+
+47
+
+Chapter 7
+Conclusion
+This diploma project demonstrates that an AI-enhanced game-based learning application
+can be justified both pedagogically and technically. The literature review shows that
+game-based and gamified environments are most effective when they combine meaningful
+challenge, immediate feedback, repetition, and learner-centred design rather than relying
+on speed or competition alone. The updated survey with 100 responses reinforces this
+conclusion by showing that students value retries, progress visibility, explanations, and
+balanced challenge more consistently than public ranking or strict time pressure.
+On the basis of these findings, the thesis proposes a coherent minimum viable product,
+a structured domain model, and a service-oriented architecture that separate learning
+content, quiz logic, gamification, analytics, and AI assistance. The selected technology
+stack is appropriate for an academic prototype because it supports mobile delivery,
+modular backend logic, controlled AI integration, and future scalability.
+Overall, the project provides a research-grounded blueprint for a personalized educational platform in which AI functions as a support layer for adaptation, feedback, and
+analytics, while game-based interaction creates a more engaging and responsive learning
+experience. Future work should focus on prototype implementation, classroom testing,
+longitudinal evaluation, and further refinement of privacy, safety, and explainability
+mechanisms.
+
+48
+
+References
+[1] Agustin Aibar-Almazan et al. (2024). Gamification in the classroom: Kahoot! as a
+tool for university teaching innovation. Frontiers in Psychology, DOI: 10.3389/fpsyg.2024.1370084
+[2] Yigal Attali; Meirav Arieli-Attali. (2015). Gamification in assessment: Do
+points affect test performance? Computers & Education, 83, 57-63. DOI:
+10.1016/j.compedu.2014.12.012
+[3] Huseyin Bicen; Selcuk Kocakoyun. (2018). Perceptions of Students for Gamification
+Approach: Kahoot as a Case Study. International Journal of Emerging Technologies
+in Learning (iJET), 13(02), 72-93. DOI: 10.3991/ijet.v13i02.7467
+[4] Christo Dichev; Darina Dicheva. (2017). Gamifying education: what is known, what is
+believed and what remains uncertain. International Journal of Educational Technology
+in Higher Education, 14, 9. DOI: 10.1186/s41239-017-0042-5
+[5] Wendy Hsin-Yuan Huang; Dilip Soman. (2013). A Practitioner’s Guide to Gamification
+of Education. Rotman School of Management, University of Toronto. URL in your
+source list.
+[6] Daniel A. Kaufmann. (2018). Reflection: Benefits of gamification in online higher
+education. Journal of Instructional Research, 7, 125-132. ERIC link in your source
+list.
+[7] Liuyufeng Li; K. F. Hew; J. Du. (2024). Gamification enhances student intrinsic
+motivation, perceptions of autonomy and relatedness, but minimal impact on competency: a meta-analysis and systematic review. Educational Technology Research and
+Development, 72(2), 765-796. DOI: 10.1007/s11423-023-10337-7
+
+49
+
+CHAPTER 7. CONCLUSION
+
+[8] Minzi Li; S. Ma; Y. Shi. (2023). Examining the effectiveness of gamification as a tool
+promoting teaching and learning in educational settings: a meta-analysis. Frontiers
+in Psychology, 14. DOI: 10.3389/fpsyg.2023.1253549
+[9] Fiona Fui-Hoon Nah et al. (2013). Gamification of education using computer games.
+In Lecture Notes in Computer Science. DOI: 10.1007/978-3-642-39226-9_12
+[10] Hiba Qureshi; Sahib Khatoon. (2023). The impact of gamification tools on reading
+comprehension skills: A comparative study of Kahoot!, Quizizz, and Baamboozle
+for English language learners. Pakistan Languages and Humanities Review, 7(IV),
+181-195. DOI: 10.47205/plhr.2023(7-iv)16
+[11] Nadia Fitrah Razali et al. (2020). Gamification elements in Quizizz applications:
+Evaluating the impact on intrinsic and extrinsic students’ motivation. IOP Conference Series: Materials Science and Engineering, 917(1), 012024. DOI: 10.1088/1757899X/917/1/012024
+[12] Luiz Rodrigues et al. (2022). Gamification suffers from the novelty effect but benefits
+from the familiarization effect: Findings from a longitudinal study. International
+Journal of Educational Technology in Higher Education. DOI: 10.1186/s41239-02100314-6
+[13] Harun Sitompul et al. (2023). Exploring students’ perception of Quizizz as a learning
+media in higher education. Canadian Journal of Learning and Technology, 49(3). DOI:
+10.21432/cjlt28449
+[14] Rodrigo Smiderle et al. (2020). The impact of gamification on students’ learning,
+engagement and behavior based on their personality traits. Smart Learning Environments. DOI: 10.1186/s40561-019-0098-x
+[15] Jiyuan Zeng et al. (2024). Exploring the impact of gamification on students’ academic
+performance: A comprehensive meta-analysis of studies from the year 2008 to 2023.
+British Journal of Educational Technology, 55(6), 2478-2502. DOI: 10.1111/bjet.13471
+[16] Tumaini Kabudi; I. Pappas; D. H. Olsen. (2021). AI-enabled adaptive learning
+systems: A systematic mapping of the literature. Computers and Education: Artificial
+Intelligence, 2, 100017. DOI: 10.1016/j.caeai.2021.100017
+[17] Domna Chiotaki et al. (2023). Adaptive game-based learning in education: a systematic
+review. Frontiers in Computer Science, 5. DOI: 10.3389/fcomp.2023.1062350
+50
+
+CHAPTER 7. CONCLUSION
+
+[18] Wookhee Min et al. (2019/2020). DeepStealth: Game-Based Learning Stealth Assessment With Deep Neural Networks. IEEE Transactions on Learning Technologies,
+13(2), 312-325. DOI: 10.1109/TLT.2019.2922356
+[19] Raluca Ionela Maxim; Joan Arnedo-Moreno. (2025). EDTF: A User-Centered Approach to Digital Educational Games Design and Development. Information, 16(9),
+794. DOI: 10.3390/info16090794
+[20] UNESCO (Fengchun Miao; Wayne Holmes). (2023). Guidance for generative AI in
+education and research. URL in your source list.
+
+51
+
+
