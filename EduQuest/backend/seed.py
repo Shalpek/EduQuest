@@ -156,12 +156,24 @@ def seed_db():
     db.refresh(quiz2)
     db.refresh(quiz3)
     db.refresh(quiz4)
-    
+
     print("Seeding progress (completed lessons and attempts)...")
     student = next(u for u in users if u.email == "student@eduquest.com")
     alice = next(u for u in users if u.email == "alice@eduquest.com")
     
     now = datetime.utcnow()
+
+    print("Seeding assignments...")
+    assignment1 = models.Assignment(
+        quiz_id=quiz2.id,
+        course_id=course1.id,
+        title="Loop mastery check",
+        instructions="Complete the quiz after revising for-loops and while-loops.",
+        due_at=now + timedelta(days=3),
+        is_published=True,
+    )
+    db.add(assignment1)
+    db.commit()
 
     # Student completed lessons
     db.add(models.CompletedLesson(user_id=student.id, lesson_id=c1_lesson1.id, completed_at=now - timedelta(days=5)))

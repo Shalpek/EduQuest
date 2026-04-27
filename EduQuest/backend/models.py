@@ -53,6 +53,7 @@ class Course(Base):
     description = Column(String)
     
     lessons = relationship("Lesson", back_populates="course")
+    assignments = relationship("Assignment", back_populates="course")
 
 class Lesson(Base):
     __tablename__ = "lessons"
@@ -80,6 +81,7 @@ class Quiz(Base):
     lesson_id = Column(Integer, ForeignKey("lessons.id"))
     title = Column(String)
     questions = Column(String) # Stored as JSON string for simplicity in MVP
+    assignments = relationship("Assignment", back_populates="quiz")
     
 class Attempt(Base):
     __tablename__ = "attempts"
@@ -90,4 +92,20 @@ class Attempt(Base):
     score = Column(Float)
     earned_xp = Column(Integer)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Assignment(Base):
+    __tablename__ = "assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    quiz_id = Column(Integer, ForeignKey("quizzes.id"))
+    course_id = Column(Integer, ForeignKey("courses.id"))
+    title = Column(String, index=True)
+    instructions = Column(String, default="")
+    due_at = Column(DateTime, nullable=True)
+    is_published = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    quiz = relationship("Quiz", back_populates="assignments")
+    course = relationship("Course", back_populates="assignments")
 
