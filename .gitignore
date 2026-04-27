@@ -1,2 +1,10 @@
 *.zip
 .idea/
+
+# Local workflow / agent files
+AGENT_PROJECT_PLAYBOOK.md
+REPO_MEMORY/
+
+# Local backend runtime artifacts
+EduQuest/backend/*.log
+EduQuest/backend/*.db
