@@ -19,14 +19,21 @@ class QuizSubmit(BaseModel):
     score: float
 
 @router.get("/lesson/{lesson_id}", response_model=QuizSchema)
-def get_quiz_by_lesson(lesson_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(dependencies.get_active_student)):
+def get_quiz_by_lesson(lesson_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(dependencies.get_active_user)):
     quiz = db.query(models.Quiz).filter(models.Quiz.lesson_id == lesson_id).first()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
     return quiz
 
 @router.post("/{quiz_id}/submit")
-def submit_quiz(quiz_id: int, submission: QuizSubmit, db: Session = Depends(database.get_db), current_user: models.User = Depends(dependencies.get_active_student)):
+def submit_quiz(quiz_id: int, submission: QuizSubmit, db: Session = Depends(database.get_db), current_user: models.User = Depends(dependencies.get_active_user)):
+    if submission.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Cannot submit a quiz for another user")
+
+    quiz = db.query(models.Quiz).filter(models.Quiz.id == quiz_id).first()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+
     config = db.query(models.SystemConfig).first()
     base_xp = config.xp_per_quiz if config else 100
 
@@ -49,6 +56,7 @@ def submit_quiz(quiz_id: int, submission: QuizSubmit, db: Session = Depends(data
             profile.level += 1
             
     db.commit()
+    db.refresh(attempt)
 
     # Adaptive Feedback Mechanism
     feedback_message = "Keep practicing! You can try this again to master the content."
@@ -59,15 +67,24 @@ def submit_quiz(quiz_id: int, submission: QuizSubmit, db: Session = Depends(data
     
     return {
         "message": "Quiz submitted",
+        "attempt_id": attempt.id,
         "score": submission.score,
         "xp_earned": xp_earned,
         "new_level": profile.level if profile else 1,
+        "new_streak": profile.streak if profile else 0,
         "feedback_message": feedback_message
     }
 
 
 @router.get("/user/{user_id}/attempts")
-def get_user_attempts(user_id: int, db: Session = Depends(database.get_db)):
+def get_user_attempts(
+    user_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(dependencies.get_active_user),
+):
+    if current_user.id != user_id and current_user.role not in {"teacher", "admin"}:
+        raise HTTPException(status_code=403, detail="Not allowed to access another user's attempts")
+
     attempts = db.query(models.Attempt).filter(models.Attempt.user_id == user_id).order_by(models.Attempt.created_at.desc()).all()
     result = []
     for a in attempts:

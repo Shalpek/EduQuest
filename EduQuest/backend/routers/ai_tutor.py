@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import datetime
@@ -99,7 +99,9 @@ def _build_follow_up_answer(user_question: str, lesson_title: str, wrong_answers
     return "Ask me about a specific wrong answer, and I will explain the concept step by step."
 
 @router.post("/hint")
-def request_hint(request: HintRequest, db: Session = Depends(database.get_db), current_user: models.User = Depends(dependencies.get_active_student)):
+def request_hint(request: HintRequest, db: Session = Depends(database.get_db), current_user: models.User = Depends(dependencies.get_active_user)):
+    if request.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Cannot request hints for another user")
     # Simulator delay to represent LLM latency
     time.sleep(1.5)
 
@@ -141,8 +143,10 @@ def request_hint(request: HintRequest, db: Session = Depends(database.get_db), c
 def review_mistakes(
     request: ReviewRequest,
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(dependencies.get_active_student),
+    current_user: models.User = Depends(dependencies.get_active_user),
 ):
+    if request.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Cannot review mistakes for another user")
     time.sleep(1.0)
 
     explanations = [_build_review_item(mistake) for mistake in request.wrong_answers]
@@ -172,8 +176,10 @@ def review_mistakes(
 def review_chat(
     request: ReviewFollowUpRequest,
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(dependencies.get_active_student),
+    current_user: models.User = Depends(dependencies.get_active_user),
 ):
+    if request.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Cannot continue AI review for another user")
     time.sleep(0.8)
 
     response = _build_follow_up_answer(

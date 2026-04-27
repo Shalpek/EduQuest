@@ -73,7 +73,7 @@ def login(user: UserLogin, db: Session = Depends(database.get_db)):
 
 
 @router.get("/me", response_model=CurrentUserResponse)
-def get_me(current_user: models.User = Depends(dependencies.get_active_student)):
+def get_me(current_user: models.User = Depends(dependencies.get_active_user)):
     return current_user
 
 
@@ -81,7 +81,7 @@ def get_me(current_user: models.User = Depends(dependencies.get_active_student))
 def update_me(
     payload: ProfileUpdate,
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(dependencies.get_active_student),
+    current_user: models.User = Depends(dependencies.get_active_user),
 ):
     current_user.full_name = payload.full_name.strip()
     db.commit()
@@ -93,7 +93,7 @@ def update_me(
 def change_password(
     payload: PasswordUpdate,
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(dependencies.get_active_student),
+    current_user: models.User = Depends(dependencies.get_active_user),
 ):
     if current_user.hashed_password != f"mock_hash_{payload.current_password}":
         raise HTTPException(status_code=400, detail="Current password is incorrect")
