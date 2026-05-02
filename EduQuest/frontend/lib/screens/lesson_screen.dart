@@ -191,7 +191,7 @@ class _LessonScreenState extends State<LessonScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'A mobile-first curriculum view inspired by modern course players: visible lesson structure, immediate next action, and AI-supported study assistance.',
+            'A phone-first curriculum view with clear sequencing, immediate next actions, and AI-supported study assistance.',
             style: Theme.of(
               context,
             ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
@@ -262,8 +262,8 @@ class _LessonScreenState extends State<LessonScreen> {
                       const SizedBox(height: 6),
                       Text(
                         isCompleted
-                            ? 'Opened and tracked in progress'
-                            : 'Tap to open details and continue study',
+                            ? '${lesson['estimated_minutes'] ?? 15} min • opened and tracked'
+                            : '${lesson['estimated_minutes'] ?? 15} min • tap to continue study',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -309,31 +309,24 @@ class _LessonScreenState extends State<LessonScreen> {
             ),
             child: Text(
               lesson['content']?.toString() ??
-                  'Lesson content will appear here once the teacher publishes richer material.',
+                  'Lesson material is unavailable right now.',
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
             ),
           ),
           const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _openAiTutor,
-                  icon: const Icon(Icons.smart_toy_outlined),
-                  label: const Text('Ask AI tutor'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _openQuiz,
-                  icon: const Icon(Icons.quiz_outlined),
-                  label: const Text('Take quiz'),
-                ),
-              ),
-            ],
+          AdaptiveTwoPane(
+            first: OutlinedButton.icon(
+              onPressed: _openAiTutor,
+              icon: const Icon(Icons.smart_toy_outlined),
+              label: const Text('Ask AI tutor'),
+            ),
+            second: ElevatedButton.icon(
+              onPressed: _openQuiz,
+              icon: const Icon(Icons.quiz_outlined),
+              label: const Text('Take quiz'),
+            ),
           ),
         ],
       ),

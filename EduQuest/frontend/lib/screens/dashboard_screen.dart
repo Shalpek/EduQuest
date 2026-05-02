@@ -123,37 +123,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
       text: currentUser?['full_name']?.toString() ?? '',
     );
     final messenger = ScaffoldMessenger.of(context);
-    await showDialog<void>(
+    await showAppModalSheet<void>(
       context: context,
-      builder: (dialogContext) {
-        final navigator = Navigator.of(dialogContext);
-        return AlertDialog(
-          title: const Text('Update display name'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(labelText: 'Full name'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => navigator.pop(),
-              child: const Text('Cancel'),
+      builder: (sheetContext) {
+        final navigator = Navigator.of(sheetContext);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Update display name',
+              style: Theme.of(sheetContext).textTheme.titleLarge,
             ),
-            ElevatedButton(
-              onPressed: () async {
-                final name = controller.text.trim();
-                if (name.isEmpty) return;
-                final ok = await ApiService.updateCurrentUser(name);
-                if (!mounted) return;
-                navigator.pop();
-                if (ok) {
-                  await _loadData();
-                  messenger.showSnackBar(
-                    const SnackBar(content: Text('Display name updated')),
-                  );
-                }
-              },
-              child: const Text('Save'),
+            const SizedBox(height: 8),
+            Text(
+              'Keep your learner profile aligned with the role-aware account shell.',
+              style: Theme.of(sheetContext).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Full name'),
+            ),
+            const SizedBox(height: 18),
+            AdaptiveTwoPane(
+              collapseWidth: 360,
+              first: OutlinedButton(
+                onPressed: () => navigator.pop(),
+                child: const Text('Cancel'),
+              ),
+              second: ElevatedButton(
+                onPressed: () async {
+                  final name = controller.text.trim();
+                  if (name.isEmpty) return;
+                  final ok = await ApiService.updateCurrentUser(name);
+                  if (!mounted) return;
+                  navigator.pop();
+                  if (ok) {
+                    await _loadData();
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Display name updated')),
+                    );
+                  }
+                },
+                child: const Text('Save'),
+              ),
             ),
           ],
         );
@@ -167,72 +182,80 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final confirmController = TextEditingController();
     final messenger = ScaffoldMessenger.of(context);
 
-    await showDialog<void>(
+    await showAppModalSheet<void>(
       context: context,
-      builder: (dialogContext) {
-        final navigator = Navigator.of(dialogContext);
-        return AlertDialog(
-          title: const Text('Change password'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: currentController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Current password',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: newController,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'New password'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: confirmController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Confirm new password',
-                  ),
-                ),
-              ],
+      builder: (sheetContext) {
+        final navigator = Navigator.of(sheetContext);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Change password',
+              style: Theme.of(sheetContext).textTheme.titleLarge,
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => navigator.pop(),
-              child: const Text('Cancel'),
+            const SizedBox(height: 8),
+            Text(
+              'Use a keyboard-safe sheet instead of a cramped dialog on mobile.',
+              style: Theme.of(sheetContext).textTheme.bodySmall,
             ),
-            ElevatedButton(
-              onPressed: () async {
-                if (newController.text != confirmController.text) {
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('New password confirmation does not match'),
-                    ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: currentController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Current password'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: newController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'New password'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: confirmController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Confirm new password',
+              ),
+            ),
+            const SizedBox(height: 18),
+            AdaptiveTwoPane(
+              collapseWidth: 360,
+              first: OutlinedButton(
+                onPressed: () => navigator.pop(),
+                child: const Text('Cancel'),
+              ),
+              second: ElevatedButton(
+                onPressed: () async {
+                  if (newController.text != confirmController.text) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'New password confirmation does not match',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+                  final error = await ApiService.changePassword(
+                    currentController.text,
+                    newController.text,
                   );
-                  return;
-                }
-                final error = await ApiService.changePassword(
-                  currentController.text,
-                  newController.text,
-                );
-                if (!mounted) return;
-                if (error == null) {
-                  navigator.pop();
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Password updated successfully'),
-                    ),
-                  );
-                } else {
-                  messenger.showSnackBar(SnackBar(content: Text(error)));
-                }
-              },
-              child: const Text('Update'),
+                  if (!mounted) return;
+                  if (error == null) {
+                    navigator.pop();
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Password updated successfully'),
+                      ),
+                    );
+                  } else {
+                    messenger.showSnackBar(SnackBar(content: Text(error)));
+                  }
+                },
+                child: const Text('Update'),
+              ),
             ),
           ],
         );
@@ -385,71 +408,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed:
-                          firstCourse == null
-                              ? null
-                              : () => _openCourse(firstCourse),
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('Continue learning'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed:
-                          () => _openAiTutor(
-                            firstCourse?['title']?.toString() ??
-                                'Learning strategy',
-                          ),
-                      icon: const Icon(Icons.smart_toy_outlined),
-                      label: const Text('Ask AI coach'),
-                    ),
-                  ),
-                ],
+              AdaptiveTwoPane(
+                first: ElevatedButton.icon(
+                  onPressed:
+                      firstCourse == null
+                          ? null
+                          : () => _openCourse(firstCourse),
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Continue learning'),
+                ),
+                second: OutlinedButton.icon(
+                  onPressed:
+                      () => _openAiTutor(
+                        firstCourse?['title']?.toString() ??
+                            'Learning strategy',
+                      ),
+                  icon: const Icon(Icons.smart_toy_outlined),
+                  label: const Text('Ask AI coach'),
+                ),
               ),
             ],
           ),
         ),
         const SizedBox(height: 16),
-        SizedBox(
-          height: 170,
-          child: GridView.count(
-            crossAxisCount: 2,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.45,
-            children: [
-              AppStatCard(
-                label: 'Total XP',
-                value: '$_xp',
-                icon: Icons.bolt_outlined,
-                color: EduQuestColors.primary,
-              ),
-              AppStatCard(
-                label: 'Average score',
-                value: '${(_averageScore * 100).round()}%',
-                icon: Icons.show_chart,
-                color: EduQuestColors.info,
-              ),
-              AppStatCard(
-                label: 'Completed lessons',
-                value: '$_completedLessonsCount',
-                icon: Icons.task_alt_outlined,
-                color: EduQuestColors.success,
-              ),
-              AppStatCard(
-                label: 'Passed quizzes',
-                value: '$_passedAttempts',
-                icon: Icons.emoji_events_outlined,
-                color: EduQuestColors.secondary,
-              ),
-            ],
-          ),
+        ResponsiveStatsGrid(
+          children: [
+            AppStatCard(
+              label: 'Total XP',
+              value: '$_xp',
+              icon: Icons.bolt_outlined,
+              color: EduQuestColors.primary,
+            ),
+            AppStatCard(
+              label: 'Average score',
+              value: '${(_averageScore * 100).round()}%',
+              icon: Icons.show_chart,
+              color: EduQuestColors.info,
+            ),
+            AppStatCard(
+              label: 'Completed lessons',
+              value: '$_completedLessonsCount',
+              icon: Icons.task_alt_outlined,
+              color: EduQuestColors.success,
+            ),
+            AppStatCard(
+              label: 'Passed quizzes',
+              value: '$_passedAttempts',
+              icon: Icons.emoji_events_outlined,
+              color: EduQuestColors.secondary,
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         const AppSectionHeader(
@@ -458,30 +466,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
               'Move between learning, practice, and review without losing momentum.',
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: AppActionCard(
-                title: 'Explore courses',
-                subtitle:
-                    'Browse your curriculum and continue structured lessons.',
-                icon: Icons.auto_stories_outlined,
-                color: EduQuestColors.primary,
-                onTap: () => setState(() => _selectedIndex = 1),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: AppActionCard(
-                title: 'Practice smarter',
-                subtitle:
-                    'Use review loops, AI explanations, and low-stakes retries.',
-                icon: Icons.psychology_alt_outlined,
-                color: EduQuestColors.accent,
-                onTap: () => setState(() => _selectedIndex = 2),
-              ),
-            ),
-          ],
+        AdaptiveTwoPane(
+          first: AppActionCard(
+            title: 'Explore courses',
+            subtitle: 'Browse your curriculum and continue structured lessons.',
+            icon: Icons.auto_stories_outlined,
+            color: EduQuestColors.primary,
+            onTap: () => setState(() => _selectedIndex = 1),
+          ),
+          second: AppActionCard(
+            title: 'Practice smarter',
+            subtitle:
+                'Use review loops, AI explanations, and low-stakes retries.',
+            icon: Icons.psychology_alt_outlined,
+            color: EduQuestColors.accent,
+            onTap: () => setState(() => _selectedIndex = 2),
+          ),
         ),
         const SizedBox(height: 16),
         AppSectionHeader(
@@ -498,7 +498,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: Icons.library_books_outlined,
             title: 'No courses yet',
             description:
-                'The student shell is ready. Backend-linked course inventory will appear here as content grows.',
+                'The catalog is empty right now. Refresh after seeded course content is expanded.',
             actionLabel: 'Refresh',
             onAction: _loadData,
           )
@@ -518,15 +518,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         const SizedBox(height: 12),
         AppSurface(
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Icon(Icons.search, color: EduQuestColors.textMuted),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Search and filtering will be connected in the next backend iteration.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+              const SizedBox(height: 10),
+              Text(
+                'Search, level filters, and effort tags will sit here once the catalog metadata is fully populated.',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
           ),
@@ -537,7 +536,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: Icons.school_outlined,
             title: 'Course catalog is empty',
             description:
-                'This screen is product-ready and waiting for richer content publication from the teacher flow.',
+                'Teacher publishing and richer seeded data will fill this learning path view.',
             actionLabel: 'Refresh',
             onAction: _loadData,
           )
@@ -556,32 +555,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
               'Mix lesson review, test-like recall, and AI-guided explanations instead of relying only on timers.',
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: AppActionCard(
-                title: 'Learn mode',
-                subtitle: 'Revisit lessons with low-pressure guided review.',
-                icon: Icons.menu_book_outlined,
-                color: EduQuestColors.primary,
-                onTap:
-                    () =>
-                        courses.isEmpty
-                            ? _loadData()
-                            : _openCourse(courses.first),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: AppActionCard(
-                title: 'Ask AI tutor',
-                subtitle: 'Get help on mistakes, concepts, or study strategy.',
-                icon: Icons.smart_toy_outlined,
-                color: EduQuestColors.info,
-                onTap: () => _openAiTutor('Quiz review and study support'),
-              ),
-            ),
-          ],
+        AdaptiveTwoPane(
+          first: AppActionCard(
+            title: 'Learn mode',
+            subtitle: 'Revisit lessons with low-pressure guided review.',
+            icon: Icons.menu_book_outlined,
+            color: EduQuestColors.primary,
+            onTap:
+                () =>
+                    courses.isEmpty ? _loadData() : _openCourse(courses.first),
+          ),
+          second: AppActionCard(
+            title: 'Ask AI tutor',
+            subtitle: 'Get help on mistakes, concepts, or study strategy.',
+            icon: Icons.smart_toy_outlined,
+            color: EduQuestColors.info,
+            onTap: () => _openAiTutor('Quiz review and study support'),
+          ),
         ),
         const SizedBox(height: 16),
         AppSurface(
@@ -708,41 +698,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        SizedBox(
-          height: 170,
-          child: GridView.count(
-            crossAxisCount: 2,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.45,
-            children: [
-              AppStatCard(
-                label: 'Daily streak',
-                value: '$_streak',
-                icon: Icons.local_fire_department_outlined,
-                color: EduQuestColors.secondary,
-              ),
-              AppStatCard(
-                label: 'Attempts',
-                value: '${attempts.length}',
-                icon: Icons.fact_check_outlined,
-                color: EduQuestColors.info,
-              ),
-              AppStatCard(
-                label: 'Completion',
-                value: '${(completionRatio * 100).round()}%',
-                icon: Icons.rocket_launch_outlined,
-                color: EduQuestColors.success,
-              ),
-              AppStatCard(
-                label: 'Courses active',
-                value: '${courses.length}',
-                icon: Icons.layers_outlined,
-                color: EduQuestColors.accent,
-              ),
-            ],
-          ),
+        ResponsiveStatsGrid(
+          children: [
+            AppStatCard(
+              label: 'Daily streak',
+              value: '$_streak',
+              icon: Icons.local_fire_department_outlined,
+              color: EduQuestColors.secondary,
+            ),
+            AppStatCard(
+              label: 'Attempts',
+              value: '${attempts.length}',
+              icon: Icons.fact_check_outlined,
+              color: EduQuestColors.info,
+            ),
+            AppStatCard(
+              label: 'Completion',
+              value: '${(completionRatio * 100).round()}%',
+              icon: Icons.rocket_launch_outlined,
+              color: EduQuestColors.success,
+            ),
+            AppStatCard(
+              label: 'Courses active',
+              value: '${courses.length}',
+              icon: Icons.layers_outlined,
+              color: EduQuestColors.accent,
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         const AppSectionHeader(
@@ -755,7 +737,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: Icons.timeline_outlined,
             title: 'No activity timeline yet',
             description:
-                'Once quizzes are taken, this progress surface will show a stronger mastery timeline.',
+                'As new attempts land, this timeline will reflect the richer study history and quiz outcomes.',
           )
         else
           ...attempts.take(8).map((attempt) => _buildTimelineItem(attempt)),
@@ -917,9 +899,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     AppInfoChip(
-                      label: 'Continue',
+                      label:
+                          '${course['lesson_count'] ?? 0} lessons • ${course['quiz_count'] ?? 0} quizzes',
                       color: EduQuestColors.primary,
-                      icon: Icons.arrow_forward,
+                      icon: Icons.auto_stories_outlined,
                     ),
                   ],
                 ),
@@ -933,9 +916,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   backgroundColor: EduQuestColors.primarySoft,
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  '${(progressSeed * 100).round()}% learning path visibility',
-                  style: Theme.of(context).textTheme.bodySmall,
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    Text(
+                      '${(progressSeed * 100).round()}% path visibility',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    if (course['difficulty'] != null)
+                      AppInfoChip(
+                        label: course['difficulty'].toString(),
+                        color: EduQuestColors.info,
+                      ),
+                    if (course['estimated_effort'] != null)
+                      AppInfoChip(
+                        label: course['estimated_effort'].toString(),
+                        color: EduQuestColors.secondary,
+                      ),
+                  ],
                 ),
               ],
             ),
@@ -1033,7 +1032,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildMiniMetric(String label, String value) {
     return Container(
-      width: 145,
+      width: 150,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: EduQuestColors.bg,
