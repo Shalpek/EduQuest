@@ -100,36 +100,41 @@ class _AIReviewScreenState extends State<AIReviewScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('AI Teacher Review')),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _buildIntroCard(),
-                const SizedBox(height: 16),
-                const AppSectionHeader(
-                  title: 'Incorrect answers explained',
-                  subtitle:
-                      'Every incorrect answer gets a direct explanation and a clear correction path.',
-                ),
-                const SizedBox(height: 12),
-                ..._buildExplanationCards(),
-                const SizedBox(height: 16),
-                const AppSectionHeader(
-                  title: 'Ask the AI teacher',
-                  subtitle:
-                      'Use follow-up questions to clarify reasoning, formulas, or misconceptions.',
-                ),
-                const SizedBox(height: 12),
-                ..._messages.map(_buildMessageBubble),
-                if (_isTyping) _buildTypingIndicator(),
-                const SizedBox(height: 100),
-              ],
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _buildIntroCard(),
+                  const SizedBox(height: 16),
+                  const AppSectionHeader(
+                    title: 'Incorrect answers explained',
+                    subtitle:
+                        'Every incorrect answer gets a direct explanation and a clear correction path.',
+                  ),
+                  const SizedBox(height: 12),
+                  ..._buildExplanationCards(),
+                  const SizedBox(height: 16),
+                  const AppSectionHeader(
+                    title: 'Ask the AI teacher',
+                    subtitle:
+                        'Use follow-up questions to clarify reasoning, formulas, or misconceptions.',
+                  ),
+                  const SizedBox(height: 12),
+                  ..._messages.map(_buildMessageBubble),
+                  if (_isTyping) _buildTypingIndicator(),
+                ],
+              ),
             ),
-          ),
-          _buildComposer(),
-        ],
+            _buildComposer(),
+          ],
+        ),
       ),
     );
   }
@@ -284,22 +289,27 @@ class _AIReviewScreenState extends State<AIReviewScreen> {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _questionController,
-                minLines: 1,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  hintText: 'Ask why the correct answer works...',
-                ),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        decoration: const BoxDecoration(
+          color: EduQuestColors.bgElevated,
+          border: Border(top: BorderSide(color: EduQuestColors.border)),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final stacked = constraints.maxWidth < 360;
+            final field = TextField(
+              controller: _questionController,
+              minLines: 1,
+              maxLines: 4,
+              textInputAction: TextInputAction.send,
+              onSubmitted: (_) => _sendQuestion(),
+              decoration: const InputDecoration(
+                hintText: 'Ask why the correct answer works...',
               ),
-            ),
-            const SizedBox(width: 10),
-            SizedBox(
-              width: 56,
+            );
+
+            final button = SizedBox(
+              width: stacked ? double.infinity : 56,
               height: 56,
               child: ElevatedButton(
                 onPressed: _isTyping ? null : _sendQuestion,
@@ -310,10 +320,27 @@ class _AIReviewScreenState extends State<AIReviewScreen> {
                   ),
                   padding: EdgeInsets.zero,
                 ),
-                child: const Icon(Icons.send),
+                child:
+                    stacked
+                        ? const Text('Send question')
+                        : const Icon(Icons.send),
               ),
-            ),
-          ],
+            );
+
+            if (stacked) {
+              return Column(
+                children: [field, const SizedBox(height: 10), button],
+              );
+            }
+
+            return Row(
+              children: [
+                Expanded(child: field),
+                const SizedBox(width: 10),
+                button,
+              ],
+            );
+          },
         ),
       ),
     );

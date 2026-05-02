@@ -340,26 +340,25 @@ class _QuizScreenState extends State<QuizScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            if (retriesEnabled)
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Retry quiz'),
-                  onPressed: _retryQuiz,
-                ),
-              ),
-            if (retriesEnabled) const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.arrow_forward),
-                label: const Text('Continue'),
-                onPressed: () => Navigator.pop(context),
-              ),
+        if (retriesEnabled)
+          AdaptiveTwoPane(
+            first: OutlinedButton.icon(
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry quiz'),
+              onPressed: _retryQuiz,
             ),
-          ],
-        ),
+            second: ElevatedButton.icon(
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Continue'),
+              onPressed: () => Navigator.pop(context),
+            ),
+          )
+        else
+          ElevatedButton.icon(
+            icon: const Icon(Icons.arrow_forward),
+            label: const Text('Continue'),
+            onPressed: () => Navigator.pop(context),
+          ),
         if (wrongAnswers.isNotEmpty) ...[
           const SizedBox(height: 12),
           ElevatedButton.icon(
