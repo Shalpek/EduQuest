@@ -30,6 +30,7 @@ class _TeacherScreenState extends State<TeacherScreen> {
   List<dynamic> studentsProgress = [];
   List<dynamic> recentAttempts = [];
   List<dynamic> assignments = [];
+  final Map<int, Map<String, dynamic>> _courseContentCache = {};
   Map<String, dynamic>? overview;
   Map<String, dynamic>? analyticsSummary;
   bool isLoading = true;
@@ -86,6 +87,39 @@ class _TeacherScreenState extends State<TeacherScreen> {
     );
   }
 
+  Future<Map<String, dynamic>?> _getCourseContentMap(int courseId) async {
+    final cached = _courseContentCache[courseId];
+    if (cached != null) return cached;
+
+    final payload = await ApiService.getCourseContentMap(courseId);
+    if (payload != null) {
+      _courseContentCache[courseId] = payload;
+    }
+    return payload;
+  }
+
+  List<Map<String, dynamic>> _lessonsForCourse(int courseId) {
+    final lessons =
+        _courseContentCache[courseId]?['lessons'] as List<dynamic>? ??
+        const <dynamic>[];
+    return lessons.map((lesson) => Map<String, dynamic>.from(lesson)).toList();
+  }
+
+  List<Map<String, dynamic>> _quizzesForCourse(int courseId) {
+    final lessons = _lessonsForCourse(courseId);
+    return lessons.expand((lesson) {
+      final lessonTitle = lesson['title']?.toString() ?? 'Lesson';
+      final quizzes = lesson['quizzes'] as List<dynamic>? ?? const <dynamic>[];
+      return quizzes.map(
+        (quiz) => {
+          ...Map<String, dynamic>.from(quiz),
+          'lesson_id': lesson['id'],
+          'lesson_title': lessonTitle,
+        },
+      );
+    }).toList();
+  }
+
   Future<void> _showCreateCourseSheet() async {
     final titleController = TextEditingController();
     final descController = TextEditingController();
@@ -130,7 +164,7 @@ class _TeacherScreenState extends State<TeacherScreen> {
               second: ElevatedButton(
                 onPressed: () async {
                   if (titleController.text.trim().isEmpty) return;
-                  final ok = await ApiService.createCourse(
+                  final response = await ApiService.createCourse(
                     titleController.text.trim(),
                     descController.text.trim(),
                   );
@@ -139,11 +173,13 @@ class _TeacherScreenState extends State<TeacherScreen> {
                   messenger.showSnackBar(
                     SnackBar(
                       content: Text(
-                        ok ? 'Course created' : 'Failed to create course',
+                        response != null
+                            ? 'Course "${response['title']}" created'
+                            : 'Failed to create course',
                       ),
                     ),
                   );
-                  if (ok) {
+                  if (response != null) {
                     await _loadData();
                   }
                 },
@@ -233,7 +269,7 @@ class _TeacherScreenState extends State<TeacherScreen> {
                   ),
                   second: ElevatedButton(
                     onPressed: () async {
-                      final ok = await ApiService.createLesson(
+                      final response = await ApiService.createLesson(
                         selectedCourseId,
                         titleController.text.trim(),
                         contentController.text.trim(),
@@ -244,11 +280,14 @@ class _TeacherScreenState extends State<TeacherScreen> {
                       messenger.showSnackBar(
                         SnackBar(
                           content: Text(
-                            ok ? 'Lesson created' : 'Failed to create lesson',
+                            response != null
+                                ? 'Lesson "${response['title']}" created'
+                                : 'Failed to create lesson',
                           ),
                         ),
                       );
-                      if (ok) {
+                      if (response != null) {
+                        _courseContentCache.remove(selectedCourseId);
                         await _loadData();
                       }
                     },
@@ -264,8 +303,16 @@ class _TeacherScreenState extends State<TeacherScreen> {
   }
 
   Future<void> _showCreateQuizSheet() async {
+    if (courses.isEmpty) return;
+    int selectedCourseId = (courses.first['id'] as num).toInt();
+    await _getCourseContentMap(selectedCourseId);
+    if (!mounted) return;
+    final availableLessons = _lessonsForCourse(selectedCourseId);
+    int? selectedLessonId =
+        availableLessons.isNotEmpty
+            ? (availableLessons.first['id'] as num).toInt()
+            : null;
     final titleController = TextEditingController();
-    final lessonIdController = TextEditingController();
     final questionsController = TextEditingController(
       text:
           '[{"q":"What does API stand for?","options":["Application Programming Interface","Applied Process Input","Abstract Product Integration","Automated Program Index"],"answer":0}]',
@@ -276,76 +323,150 @@ class _TeacherScreenState extends State<TeacherScreen> {
       context: context,
       builder: (sheetContext) {
         final navigator = Navigator.of(sheetContext);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Create quiz',
-              style: Theme.of(sheetContext).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Publish a question bank that students can practice against immediately.',
-              style: Theme.of(sheetContext).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(labelText: 'Quiz title'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: lessonIdController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Lesson ID'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: questionsController,
-              minLines: 5,
-              maxLines: 8,
-              decoration: const InputDecoration(labelText: 'Questions JSON'),
-            ),
-            const SizedBox(height: 18),
-            AdaptiveTwoPane(
-              collapseWidth: 360,
-              first: OutlinedButton(
-                onPressed: () => navigator.pop(),
-                child: const Text('Cancel'),
-              ),
-              second: ElevatedButton(
-                onPressed: () async {
-                  try {
-                    final ok = await ApiService.createQuiz(
-                      int.parse(lessonIdController.text.trim()),
-                      titleController.text.trim(),
-                      jsonDecode(questionsController.text) as List<dynamic>,
-                    );
-                    if (!mounted) return;
-                    navigator.pop();
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          ok ? 'Quiz created' : 'Failed to create quiz',
-                        ),
-                      ),
-                    );
-                    if (ok) {
-                      await _loadData();
-                    }
-                  } catch (_) {
-                    messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text('Questions JSON or lesson ID is invalid'),
-                      ),
-                    );
-                  }
-                },
-                child: const Text('Create'),
-              ),
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final lessons = _lessonsForCourse(selectedCourseId);
+            selectedLessonId =
+                lessons.any(
+                      (lesson) =>
+                          (lesson['id'] as num).toInt() == selectedLessonId,
+                    )
+                    ? selectedLessonId
+                    : (lessons.isNotEmpty
+                        ? (lessons.first['id'] as num).toInt()
+                        : null);
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Create quiz',
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Attach a quiz to an existing lesson instead of hunting for raw IDs.',
+                  style: Theme.of(sheetContext).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<int>(
+                  initialValue: selectedCourseId,
+                  items:
+                      courses
+                          .map(
+                            (course) => DropdownMenuItem<int>(
+                              value: (course['id'] as num).toInt(),
+                              child: Text(
+                                course['title']?.toString() ?? 'Course',
+                              ),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (value) async {
+                    if (value == null) return;
+                    await _getCourseContentMap(value);
+                    final nextLessons = _lessonsForCourse(value);
+                    setSheetState(() {
+                      selectedCourseId = value;
+                      selectedLessonId =
+                          nextLessons.isNotEmpty
+                              ? (nextLessons.first['id'] as num).toInt()
+                              : null;
+                    });
+                  },
+                  decoration: const InputDecoration(labelText: 'Course'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: selectedLessonId,
+                  items:
+                      lessons
+                          .map(
+                            (lesson) => DropdownMenuItem<int>(
+                              value: (lesson['id'] as num).toInt(),
+                              child: Text(
+                                lesson['title']?.toString() ?? 'Lesson',
+                              ),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (value) {
+                    setSheetState(() => selectedLessonId = value);
+                  },
+                  decoration: const InputDecoration(labelText: 'Lesson'),
+                ),
+                if (lessons.isEmpty) ...[
+                  const SizedBox(height: 12),
+                  const AppStatusBanner(
+                    message:
+                        'This course has no lessons yet. Create a lesson first, then attach a quiz.',
+                    color: EduQuestColors.info,
+                    icon: Icons.info_outline,
+                  ),
+                ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(labelText: 'Quiz title'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: questionsController,
+                  minLines: 5,
+                  maxLines: 8,
+                  decoration: const InputDecoration(labelText: 'Questions JSON'),
+                ),
+                const SizedBox(height: 18),
+                AdaptiveTwoPane(
+                  collapseWidth: 360,
+                  first: OutlinedButton(
+                    onPressed: () => navigator.pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  second: ElevatedButton(
+                    onPressed:
+                        selectedLessonId == null
+                            ? null
+                            : () async {
+                              try {
+                                final response = await ApiService.createQuiz(
+                                  selectedLessonId!,
+                                  titleController.text.trim(),
+                                  jsonDecode(questionsController.text)
+                                      as List<dynamic>,
+                                );
+                                if (!mounted) return;
+                                navigator.pop();
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      response != null
+                                          ? 'Quiz "${response['title']}" created'
+                                          : 'Failed to create quiz',
+                                    ),
+                                  ),
+                                );
+                                if (response != null) {
+                                  _courseContentCache.remove(selectedCourseId);
+                                  await _loadData();
+                                }
+                              } catch (_) {
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Questions JSON is invalid or incomplete',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                    child: const Text('Create'),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -357,9 +478,15 @@ class _TeacherScreenState extends State<TeacherScreen> {
         existing?['course_id'] != null
             ? (existing!['course_id'] as num).toInt()
             : (courses.first['id'] as num).toInt();
-    final quizIdController = TextEditingController(
-      text: existing?['quiz_id']?.toString() ?? '',
-    );
+    await _getCourseContentMap(selectedCourseId);
+    if (!mounted) return;
+    final initialQuizOptions = _quizzesForCourse(selectedCourseId);
+    int? selectedQuizId =
+        existing?['quiz_id'] != null
+            ? (existing!['quiz_id'] as num).toInt()
+            : (initialQuizOptions.isNotEmpty
+                ? (initialQuizOptions.first['id'] as num).toInt()
+                : null);
     final titleController = TextEditingController(
       text: existing?['title']?.toString() ?? '',
     );
@@ -377,6 +504,16 @@ class _TeacherScreenState extends State<TeacherScreen> {
         final navigator = Navigator.of(sheetContext);
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            final quizOptions = _quizzesForCourse(selectedCourseId);
+            selectedQuizId =
+                quizOptions.any(
+                      (quiz) => (quiz['id'] as num).toInt() == selectedQuizId,
+                    )
+                    ? selectedQuizId
+                    : (quizOptions.isNotEmpty
+                        ? (quizOptions.first['id'] as num).toInt()
+                        : null);
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -404,19 +541,48 @@ class _TeacherScreenState extends State<TeacherScreen> {
                             ),
                           )
                           .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setSheetState(() => selectedCourseId = value);
-                    }
+                  onChanged: (value) async {
+                    if (value == null) return;
+                    await _getCourseContentMap(value);
+                    final nextQuizzes = _quizzesForCourse(value);
+                    setSheetState(() {
+                      selectedCourseId = value;
+                      selectedQuizId =
+                          nextQuizzes.isNotEmpty
+                              ? (nextQuizzes.first['id'] as num).toInt()
+                              : null;
+                    });
                   },
                   decoration: const InputDecoration(labelText: 'Course'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: quizIdController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Quiz ID'),
+                DropdownButtonFormField<int>(
+                  initialValue: selectedQuizId,
+                  items:
+                      quizOptions
+                          .map(
+                            (quiz) => DropdownMenuItem<int>(
+                              value: (quiz['id'] as num).toInt(),
+                              child: Text(
+                                '${quiz['title']} (${quiz['lesson_title']})',
+                              ),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (value) {
+                    setSheetState(() => selectedQuizId = value);
+                  },
+                  decoration: const InputDecoration(labelText: 'Quiz'),
                 ),
+                if (quizOptions.isEmpty) ...[
+                  const SizedBox(height: 12),
+                  const AppStatusBanner(
+                    message:
+                        'This course has no quizzes yet. Create a quiz first, then assign it.',
+                    color: EduQuestColors.info,
+                    icon: Icons.info_outline,
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextField(
                   controller: titleController,
@@ -446,12 +612,11 @@ class _TeacherScreenState extends State<TeacherScreen> {
                     child: const Text('Cancel'),
                   ),
                   second: ElevatedButton(
-                    onPressed: () async {
-                      final quizId = int.tryParse(quizIdController.text.trim());
-                      if (quizId == null ||
-                          titleController.text.trim().isEmpty) {
-                        return;
-                      }
+                    onPressed:
+                        selectedQuizId == null ||
+                                titleController.text.trim().isEmpty
+                            ? null
+                            : () async {
                       final dueAt =
                           dueController.text.trim().isEmpty
                               ? null
@@ -460,7 +625,7 @@ class _TeacherScreenState extends State<TeacherScreen> {
                       final response =
                           existing == null
                               ? await ApiService.createTeacherAssignment(
-                                quizId: quizId,
+                                quizId: selectedQuizId!,
                                 courseId: selectedCourseId,
                                 title: titleController.text.trim(),
                                 instructions:
@@ -469,7 +634,7 @@ class _TeacherScreenState extends State<TeacherScreen> {
                               )
                               : await ApiService.updateTeacherAssignment(
                                 assignmentId: (existing['id'] as num).toInt(),
-                                quizId: quizId,
+                                quizId: selectedQuizId!,
                                 courseId: selectedCourseId,
                                 title: titleController.text.trim(),
                                 instructions:
