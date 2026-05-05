@@ -114,6 +114,40 @@ def test_teacher_content_validation_and_assignment_flow(client, auth_headers):
     }
 
 
+def test_course_content_map_returns_teacher_friendly_lesson_and_quiz_data(client):
+    courses = client.get("/api/courses/")
+    assert courses.status_code == 200
+    course = courses.json()[0]
+
+    content_map = client.get(f"/api/courses/{course['id']}/content-map")
+    assert content_map.status_code == 200
+
+    body = content_map.json()
+    assert body["course"]["id"] == course["id"]
+    assert {"lesson_count", "quiz_count", "difficulty", "estimated_effort"}.issubset(
+        body["course"].keys()
+    )
+    assert len(body["lessons"]) >= 1
+
+    first_lesson = body["lessons"][0]
+    assert {
+        "id",
+        "title",
+        "content",
+        "order",
+        "quiz_count",
+        "has_quiz",
+        "estimated_minutes",
+        "summary",
+        "quizzes",
+    }.issubset(first_lesson.keys())
+    if first_lesson["quizzes"]:
+        assert {"id", "title", "question_count"}.issubset(first_lesson["quizzes"][0].keys())
+
+    missing_course = client.get("/api/courses/999/content-map")
+    assert missing_course.status_code == 404
+
+
 def test_admin_governance_depth(client, auth_headers):
     users = client.get("/api/admin/users", headers=auth_headers("admin@eduquest.com"))
     assert users.status_code == 200
