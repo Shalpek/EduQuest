@@ -27,7 +27,6 @@ class _QuizScreenState extends State<QuizScreen> {
   List<dynamic> questions = [];
   int currentQuestionIdx = 0;
   List<int> userAnswers = [];
-  int correctAnswers = 0;
   bool isLoading = true;
   bool showResult = false;
   Map<String, dynamic>? resultData;
@@ -49,7 +48,7 @@ class _QuizScreenState extends State<QuizScreen> {
 
     try {
       final quiz = await ApiService.getQuiz(widget.lessonId);
-      final config = await ApiService.getSystemConfig();
+      final config = await ApiService.getAppConfig();
 
       if (!mounted) return;
 
@@ -61,14 +60,7 @@ class _QuizScreenState extends State<QuizScreen> {
           quizId = quiz['id'];
           questions = jsonDecode(quiz['questions']);
         } else {
-          quizId = 1;
-          questions = [
-            {
-              'q': 'What is a variable?',
-              'options': ['A data container', 'A loop', 'A function'],
-              'answer': 0,
-            },
-          ];
+          loadError = 'Quiz content is not available for this lesson yet.';
         }
         userAnswers = List.filled(questions.length, -1);
         isLoading = false;
@@ -84,21 +76,29 @@ class _QuizScreenState extends State<QuizScreen> {
 
   Future<void> _submitAnswer(int selectedIdx) async {
     userAnswers[currentQuestionIdx] = selectedIdx;
-    final correctIdx = questions[currentQuestionIdx]['answer'];
-    if (selectedIdx == correctIdx) {
-      correctAnswers++;
-    }
 
     if (currentQuestionIdx < questions.length - 1) {
       setState(() => currentQuestionIdx++);
     } else {
+      if (quizId == null) {
+        setState(() {
+          isLoading = false;
+          loadError = 'Quiz session is unavailable. Reload the lesson and try again.';
+        });
+        return;
+      }
+
       setState(() => isLoading = true);
-      final score = questions.isEmpty ? 0.0 : correctAnswers / questions.length;
-      final res = await ApiService.submitQuiz(
-        quizId ?? 1,
-        widget.userId,
-        score,
-      );
+      final res = await ApiService.submitQuiz(quizId!, userAnswers);
+
+      if (res == null) {
+        if (!mounted) return;
+        setState(() {
+          isLoading = false;
+          loadError = 'Quiz results could not be saved. Please try again.';
+        });
+        return;
+      }
 
       await ApiService.completeLesson(widget.userId, widget.lessonId);
 
@@ -107,14 +107,7 @@ class _QuizScreenState extends State<QuizScreen> {
       setState(() {
         isLoading = false;
         showResult = true;
-        resultData =
-            res ??
-            {
-              'xp_earned': (score * 100).toInt(),
-              'new_level': 1,
-              'feedback_message':
-                  'Quiz submitted. Backend-linked feedback will expand in the next pass.',
-            };
+        resultData = res;
       });
     }
   }
@@ -122,13 +115,12 @@ class _QuizScreenState extends State<QuizScreen> {
   void _retryQuiz() {
     setState(() {
       currentQuestionIdx = 0;
-      correctAnswers = 0;
       userAnswers = List.filled(questions.length, -1);
       showResult = false;
     });
   }
 
-  List<Map<String, dynamic>> _buildWrongAnswersPayload() {
+  List<Map<String, dynamic>> _buildWrongAnswersPayloadFromLocalState() {
     final wrongAnswers = <Map<String, dynamic>>[];
 
     for (var index = 0; index < questions.length; index++) {
@@ -146,6 +138,21 @@ class _QuizScreenState extends State<QuizScreen> {
     }
 
     return wrongAnswers;
+  }
+
+  List<Map<String, dynamic>> _buildWrongAnswersPayload() {
+    final serverWrongAnswers = resultData?['wrong_answers'];
+    if (serverWrongAnswers is List) {
+      return serverWrongAnswers
+          .whereType<Map>()
+          .map(
+            (item) => item.map(
+              (key, value) => MapEntry(key.toString(), value),
+            ),
+          )
+          .toList();
+    }
+    return _buildWrongAnswersPayloadFromLocalState();
   }
 
   @override
@@ -259,9 +266,14 @@ class _QuizScreenState extends State<QuizScreen> {
 
   Widget _buildResultView() {
     final wrongAnswers = _buildWrongAnswersPayload();
-    final totalQuestions = questions.length;
+    final totalQuestions =
+        resultData?['total_questions'] as int? ?? questions.length;
+    final correctAnswers =
+        resultData?['correct_answers'] as int? ??
+        (totalQuestions - wrongAnswers.length);
     final double score =
-        totalQuestions == 0 ? 0.0 : (correctAnswers / totalQuestions);
+        (resultData?['score'] as num?)?.toDouble() ??
+        (totalQuestions == 0 ? 0.0 : correctAnswers / totalQuestions);
 
     return ListView(
       padding: const EdgeInsets.all(16),

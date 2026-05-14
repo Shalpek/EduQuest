@@ -9,10 +9,11 @@ class ApiService {
 
   static Future<Map<String, String>> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getInt('user_id');
+    final authToken = prefs.getString('auth_token');
     return {
       'Content-Type': 'application/json',
-      if (userId != null) 'X-User-Id': userId.toString(),
+      if (authToken != null && authToken.isNotEmpty)
+        'Authorization': 'Bearer $authToken',
     };
   }
 
@@ -30,6 +31,7 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', data['token'] ?? '');
         await prefs.setInt('user_id', data['user_id']);
         await prefs.setString('user_email', data['email'] ?? email);
         await prefs.setString('user_name', data['full_name'] ?? '');
@@ -123,6 +125,7 @@ class ApiService {
 
   static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('auth_token');
     await prefs.remove('user_id');
     await prefs.remove('user_email');
     await prefs.remove('user_name');
@@ -210,14 +213,13 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> submitQuiz(
     int quizId,
-    int userId,
-    double score,
+    List<int> answers,
   ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/quizzes/$quizId/submit'),
         headers: await _getHeaders(),
-        body: jsonEncode({'user_id': userId, 'score': score}),
+        body: jsonEncode({'answers': answers}),
       );
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (_) {}
@@ -503,6 +505,17 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/admin/config'),
+        headers: await _getHeaders(),
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> getAppConfig() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/app/config'),
         headers: await _getHeaders(),
       );
       if (response.statusCode == 200) return jsonDecode(response.body);
