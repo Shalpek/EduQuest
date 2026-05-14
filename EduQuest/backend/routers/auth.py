@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 import models, database, dependencies
 from pydantic import BaseModel, ConfigDict
+import auth_session
 
 router = APIRouter()
 
@@ -63,8 +64,10 @@ def login(user: UserLogin, db: Session = Depends(database.get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not db_user.is_active:
         raise HTTPException(status_code=403, detail="Account is deactivated")
+    token = auth_session.create_session_token(db_user.id, db_user.role)
     return {
-        "token": f"mock_token_{db_user.id}",
+        "token": token,
+        "token_type": "bearer",
         "user_id": db_user.id,
         "role": db_user.role,
         "email": db_user.email,

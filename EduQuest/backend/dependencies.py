@@ -1,12 +1,24 @@
-from fastapi import Depends, HTTPException, Header
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from database import get_db
 import models
+import auth_session
 
-def get_current_user_id(x_user_id: int = Header(None)):
-    if x_user_id is None:
-        raise HTTPException(status_code=401, detail="X-User-Id header missing")
-    return x_user_id
+
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def get_current_user_id(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+):
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Bearer token missing")
+    try:
+        payload = auth_session.verify_session_token(credentials.credentials)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    return payload["sub"]
 
 
 def get_active_user(user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
