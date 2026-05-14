@@ -57,8 +57,14 @@ def seeded_ids(client):
 
 
 @pytest.fixture()
-def auth_headers(seeded_ids):
-    def _build(email: str):
-        return {"X-User-Id": str(seeded_ids[email])}
+def auth_headers(client):
+    def _build(email: str, password: str = "password123"):
+        response = client.post(
+            "/api/auth/login",
+            json={"email": email, "password": password},
+        )
+        assert response.status_code == 200, response.text
+        token = response.json()["token"]
+        return {"Authorization": f"Bearer {token}"}
 
     return _build

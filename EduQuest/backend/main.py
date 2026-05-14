@@ -16,9 +16,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from routers import auth, courses, ai_tutor, gamification, quizzes, analytics, teacher, admin
+from routers import auth, courses, ai_tutor, gamification, quizzes, analytics, teacher, admin, app_config
 
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(app_config.router, prefix="/api/app", tags=["App Config"])
 app.include_router(courses.router, prefix="/api/courses", tags=["Courses"])
 app.include_router(quizzes.router, prefix="/api/quizzes", tags=["Quizzes"])
 app.include_router(gamification.router, prefix="/api/gamification", tags=["Gamification"])
