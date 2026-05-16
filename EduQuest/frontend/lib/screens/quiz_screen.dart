@@ -32,8 +32,12 @@ class _QuizScreenState extends State<QuizScreen> {
   bool showResult = false;
   Map<String, dynamic>? resultData;
   int? quizId;
+  int xpReward = 100;
   bool retriesEnabled = true;
   String? loadError;
+  String? errorTitle;
+  final Map<int, String> _fillGapInputs = {};
+  final Set<int> _visibleHints = {};
 
   @override
   void initState() {
@@ -45,31 +49,41 @@ class _QuizScreenState extends State<QuizScreen> {
     setState(() {
       isLoading = true;
       loadError = null;
+      errorTitle = null;
     });
 
     try {
       final quiz = await ApiService.getQuiz(widget.lessonId);
-      final config = await ApiService.getSystemConfig();
+      final config = await ApiService.getAppConfig();
 
       if (!mounted) return;
+
+      if (quiz == null || quiz['questions'] == null || quiz['id'] == null) {
+        setState(() {
+          isLoading = false;
+          errorTitle = 'Quiz unavailable';
+          loadError = 'Quiz content could not be loaded from the backend.';
+        });
+        return;
+      }
+
+      final decodedQuestions = jsonDecode(quiz['questions'].toString());
+      if (decodedQuestions is! List || decodedQuestions.isEmpty) {
+        setState(() {
+          isLoading = false;
+          errorTitle = 'Quiz unavailable';
+          loadError = 'This lesson does not have published quiz questions yet.';
+        });
+        return;
+      }
 
       setState(() {
         if (config != null) {
           retriesEnabled = config['retries_enabled'] ?? true;
         }
-        if (quiz != null && quiz['questions'] != null) {
-          quizId = quiz['id'];
-          questions = jsonDecode(quiz['questions']);
-        } else {
-          quizId = 1;
-          questions = [
-            {
-              'q': 'What is a variable?',
-              'options': ['A data container', 'A loop', 'A function'],
-              'answer': 0,
-            },
-          ];
-        }
+        quizId = (quiz['id'] as num).toInt();
+        xpReward = ((quiz['xp_reward'] ?? 100) as num).toInt();
+        questions = decodedQuestions;
         userAnswers = List.filled(questions.length, -1);
         isLoading = false;
       });
@@ -77,6 +91,7 @@ class _QuizScreenState extends State<QuizScreen> {
       if (!mounted) return;
       setState(() {
         isLoading = false;
+        errorTitle = 'Quiz unavailable';
         loadError = 'Quiz content could not be loaded.';
       });
     }
@@ -84,7 +99,7 @@ class _QuizScreenState extends State<QuizScreen> {
 
   Future<void> _submitAnswer(int selectedIdx) async {
     userAnswers[currentQuestionIdx] = selectedIdx;
-    final correctIdx = questions[currentQuestionIdx]['answer'];
+    final correctIdx = _correctIndex(questions[currentQuestionIdx]);
     if (selectedIdx == correctIdx) {
       correctAnswers++;
     }
@@ -93,30 +108,55 @@ class _QuizScreenState extends State<QuizScreen> {
       setState(() => currentQuestionIdx++);
     } else {
       setState(() => isLoading = true);
-      final score = questions.isEmpty ? 0.0 : correctAnswers / questions.length;
-      final res = await ApiService.submitQuiz(
-        quizId ?? 1,
-        widget.userId,
-        score,
-      );
+      if (quizId == null) {
+        if (!mounted) return;
+        setState(() {
+          isLoading = false;
+          errorTitle = 'Quiz result not saved';
+          loadError =
+              'The quiz session is missing a backend quiz id. Reload the lesson and try again.';
+        });
+        return;
+      }
 
-      await ApiService.completeLesson(widget.userId, widget.lessonId);
+      final res = await ApiService.submitQuiz(quizId!, List<int>.from(userAnswers));
 
       if (!mounted) return;
+
+      if (res == null) {
+        setState(() {
+          isLoading = false;
+          errorTitle = 'Quiz result not saved';
+          loadError =
+              'Quiz submission failed. Your attempt was not saved, so XP and progress were not updated.';
+        });
+        return;
+      }
 
       setState(() {
         isLoading = false;
         showResult = true;
-        resultData =
-            res ??
-            {
-              'xp_earned': (score * 100).toInt(),
-              'new_level': 1,
-              'feedback_message':
-                  'Quiz submitted. Backend-linked feedback will expand in the next pass.',
-            };
+        resultData = res;
+        correctAnswers =
+            ((res['correct_answers'] ?? correctAnswers) as num).toInt();
       });
     }
+  }
+
+  Future<void> _submitFillGapAnswer() async {
+    final q = questions[currentQuestionIdx];
+    final options = _options(q);
+    final typed = _fillGapInputs[currentQuestionIdx] ?? '';
+    final selectedIdx = _matchingOptionIndex(typed, options);
+    if (selectedIdx < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Type one of the expected answers before submitting.'),
+        ),
+      );
+      return;
+    }
+    await _submitAnswer(selectedIdx);
   }
 
   void _retryQuiz() {
@@ -124,28 +164,29 @@ class _QuizScreenState extends State<QuizScreen> {
       currentQuestionIdx = 0;
       correctAnswers = 0;
       userAnswers = List.filled(questions.length, -1);
+      _fillGapInputs.clear();
+      _visibleHints.clear();
       showResult = false;
     });
   }
 
-  List<Map<String, dynamic>> _buildWrongAnswersPayload() {
-    final wrongAnswers = <Map<String, dynamic>>[];
-
-    for (var index = 0; index < questions.length; index++) {
-      final question = questions[index];
-      final userAnswerIdx = userAnswers[index];
-      final correctIdx = question['answer'];
-      if (userAnswerIdx != correctIdx) {
-        wrongAnswers.add({
-          'question': question['q'],
-          'options': List<String>.from(question['options']),
-          'user_answer_index': userAnswerIdx,
-          'correct_answer_index': correctIdx,
-        });
-      }
+  void _openAiReview({int? questionIndex}) {
+    final attemptId = ((resultData?['attempt_id'] ?? 0) as num).toInt();
+    if (attemptId <= 0) {
+      return;
     }
-
-    return wrongAnswers;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (_) => AIReviewScreen(
+              userId: widget.userId,
+              attemptId: attemptId,
+              lessonTitle: widget.lessonTitle,
+              questionIndex: questionIndex,
+            ),
+      ),
+    );
   }
 
   @override
@@ -163,7 +204,7 @@ class _QuizScreenState extends State<QuizScreen> {
       return Scaffold(
         appBar: AppBar(title: Text(widget.lessonTitle)),
         body: AppErrorState(
-          title: 'Quiz unavailable',
+          title: errorTitle ?? 'Quiz unavailable',
           description: loadError!,
           onRetry: _loadQuiz,
         ),
@@ -192,6 +233,11 @@ class _QuizScreenState extends State<QuizScreen> {
   Widget _buildQuizView() {
     final q = questions[currentQuestionIdx];
     final progress = (currentQuestionIdx + 1) / questions.length;
+    final type = q['type']?.toString() ?? 'mcq';
+    final difficulty = q['difficulty']?.toString();
+    final topicTag = q['topicTag']?.toString();
+    final hint = q['hint']?.toString() ?? '';
+    final showHint = _visibleHints.contains(currentQuestionIdx);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -205,6 +251,20 @@ class _QuizScreenState extends State<QuizScreen> {
                 color: EduQuestColors.primary,
                 icon: Icons.track_changes_outlined,
               ),
+              const SizedBox(height: 10),
+              AppInfoChip(
+                label: '$xpReward XP max',
+                color: EduQuestColors.secondary,
+                icon: Icons.bolt_outlined,
+              ),
+              if (type != 'mcq') ...[
+                const SizedBox(height: 10),
+                AppInfoChip(
+                  label: type,
+                  color: EduQuestColors.info,
+                  icon: Icons.extension_outlined,
+                ),
+              ],
               const SizedBox(height: 14),
               Text(
                 'Question ${currentQuestionIdx + 1}',
@@ -232,24 +292,52 @@ class _QuizScreenState extends State<QuizScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(q['q'], style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 18),
-              ...List.generate(q['options'].length, (index) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: OutlinedButton(
-                    onPressed: () => _submitAnswer(index),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.all(18),
-                      alignment: Alignment.centerLeft,
-                    ),
-                    child: Text(
-                      q['options'][index],
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
+              Text(_questionText(q), style: Theme.of(context).textTheme.titleLarge),
+              if (difficulty != null || topicTag != null) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    if (difficulty != null)
+                      AppInfoChip(
+                        label: difficulty,
+                        color: EduQuestColors.secondary,
+                        icon: Icons.speed_outlined,
+                      ),
+                    if (topicTag != null)
+                      AppInfoChip(
+                        label: topicTag,
+                        color: EduQuestColors.info,
+                        icon: Icons.sell_outlined,
+                      ),
+                  ],
+                ),
+              ],
+              if (q['code'] != null) ...[
+                const SizedBox(height: 14),
+                _buildCodeBlock(q['code'].toString()),
+              ],
+              if (hint.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() => _visibleHints.add(currentQuestionIdx));
+                  },
+                  icon: const Icon(Icons.lightbulb_outline),
+                  label: const Text('Show hint'),
+                ),
+                if (showHint) ...[
+                  const SizedBox(height: 10),
+                  AppStatusBanner(
+                    message: hint,
+                    color: EduQuestColors.info,
+                    icon: Icons.smart_toy_outlined,
                   ),
-                );
-              }),
+                ],
+              ],
+              const SizedBox(height: 18),
+              _buildQuestionInput(q),
             ],
           ),
         ),
@@ -258,10 +346,10 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   Widget _buildResultView() {
-    final wrongAnswers = _buildWrongAnswersPayload();
     final totalQuestions = questions.length;
+    final localScore = totalQuestions == 0 ? 0.0 : correctAnswers / totalQuestions;
     final double score =
-        totalQuestions == 0 ? 0.0 : (correctAnswers / totalQuestions);
+        ((resultData?['score'] ?? localScore) as num).toDouble();
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -333,7 +421,7 @@ class _QuizScreenState extends State<QuizScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                '${(score * 100).round()}% accuracy • Level ${resultData?['new_level'] ?? 1}',
+                '${(score * 100).round()}% accuracy | Level ${resultData?['new_level'] ?? 1}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
@@ -359,7 +447,7 @@ class _QuizScreenState extends State<QuizScreen> {
             label: const Text('Continue'),
             onPressed: () => Navigator.pop(context),
           ),
-        if (wrongAnswers.isNotEmpty) ...[
+        if ((resultData?['wrong_answer_indexes'] as List<dynamic>? ?? []).isNotEmpty) ...[
           const SizedBox(height: 12),
           ElevatedButton.icon(
             icon: const Icon(Icons.smart_toy_outlined),
@@ -367,19 +455,7 @@ class _QuizScreenState extends State<QuizScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: EduQuestColors.info,
             ),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder:
-                      (_) => AIReviewScreen(
-                        userId: widget.userId,
-                        lessonTitle: widget.lessonTitle,
-                        wrongAnswers: wrongAnswers,
-                      ),
-                ),
-              );
-            },
+            onPressed: _openAiReview,
           ),
         ],
         const SizedBox(height: 16),
@@ -392,8 +468,12 @@ class _QuizScreenState extends State<QuizScreen> {
         ...List.generate(questions.length, (index) {
           final q = questions[index];
           final userAnswerIdx = userAnswers[index];
-          final correctIdx = q['answer'];
+          final correctIdx = _correctIndex(q);
           final isCorrect = userAnswerIdx == correctIdx;
+          final explanation = q['explanation']?.toString() ?? '';
+          final difficulty = q['difficulty']?.toString();
+          final topicTag = q['topicTag']?.toString();
+          final options = _options(q);
 
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -421,7 +501,7 @@ class _QuizScreenState extends State<QuizScreen> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            q['q'],
+                            _questionText(q),
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                         ),
@@ -429,7 +509,7 @@ class _QuizScreenState extends State<QuizScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Your answer: ${userAnswerIdx >= 0 && userAnswerIdx < q['options'].length ? q['options'][userAnswerIdx] : 'None'}',
+                      'Your answer: ${userAnswerIdx >= 0 && userAnswerIdx < options.length ? options[userAnswerIdx] : 'None'}',
                       style: TextStyle(
                         color:
                             isCorrect
@@ -441,10 +521,66 @@ class _QuizScreenState extends State<QuizScreen> {
                     if (!isCorrect) ...[
                       const SizedBox(height: 6),
                       Text(
-                        'Correct answer: ${q['options'][correctIdx]}',
+                        'Correct answer: ${correctIdx >= 0 && correctIdx < options.length ? options[correctIdx] : 'Unknown'}',
                         style: const TextStyle(
                           color: EduQuestColors.success,
                           fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.smart_toy_outlined),
+                          label: const Text('Review this mistake with AI'),
+                          onPressed: () => _openAiReview(questionIndex: index),
+                        ),
+                      ),
+                    ],
+                    if (difficulty != null || topicTag != null) ...[
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          if (difficulty != null)
+                            AppInfoChip(
+                              label: difficulty,
+                              color: EduQuestColors.secondary,
+                              icon: Icons.speed_outlined,
+                            ),
+                          if (topicTag != null)
+                            AppInfoChip(
+                              label: topicTag,
+                              color: EduQuestColors.info,
+                              icon: Icons.sell_outlined,
+                            ),
+                        ],
+                      ),
+                    ],
+                    if (explanation.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: EduQuestColors.bg,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: EduQuestColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Explanation',
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              explanation,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -456,5 +592,133 @@ class _QuizScreenState extends State<QuizScreen> {
         }),
       ],
     );
+  }
+
+  Widget _buildQuestionInput(dynamic question) {
+    final type = question is Map ? question['type']?.toString() ?? 'mcq' : 'mcq';
+    switch (type) {
+      case 'fill_gap':
+        return _buildFillGapInput(question);
+      case 'ordering':
+        return _buildOptionButtons(question, ordered: true);
+      case 'true_false':
+      case 'code_output':
+      case 'mcq':
+      default:
+        return _buildOptionButtons(question);
+    }
+  }
+
+  Widget _buildOptionButtons(dynamic question, {bool ordered = false}) {
+    final options = _options(question);
+    return Column(
+      children: List.generate(options.length, (index) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: OutlinedButton(
+            onPressed: () => _submitAnswer(index),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.all(18),
+              alignment: Alignment.centerLeft,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (ordered) ...[
+                  AppInfoChip(
+                    label: '${index + 1}',
+                    color: EduQuestColors.secondary,
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Text(
+                    options[index],
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildFillGapInput(dynamic question) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          key: ValueKey('fill-gap-$currentQuestionIdx'),
+          onChanged: (value) => _fillGapInputs[currentQuestionIdx] = value,
+          decoration: InputDecoration(
+            labelText: 'Type the missing word',
+            helperText: 'Use the lesson keyword exactly.',
+          ),
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => _submitFillGapAnswer(),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          onPressed: _submitFillGapAnswer,
+          icon: const Icon(Icons.check),
+          label: const Text('Submit answer'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCodeBlock(String code) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: EduQuestColors.bg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: EduQuestColors.border),
+      ),
+      child: Text(
+        code,
+        style: const TextStyle(
+          color: Colors.white70,
+          fontFamily: 'monospace',
+          height: 1.45,
+        ),
+      ),
+    );
+  }
+
+  String _questionText(dynamic question) {
+    if (question is Map) {
+      return question['q']?.toString() ??
+          question['question']?.toString() ??
+          'Question';
+    }
+    return 'Question';
+  }
+
+  int _correctIndex(dynamic question) {
+    if (question is Map) {
+      final answer = question['answer'] ?? question['correctIndex'] ?? 0;
+      if (answer is num) return answer.toInt();
+    }
+    return 0;
+  }
+
+  List<String> _options(dynamic question) {
+    if (question is Map && question['options'] is List) {
+      return List<String>.from(question['options'] as List);
+    }
+    return const [];
+  }
+
+  int _matchingOptionIndex(String input, List<String> options) {
+    final normalized = input.trim().toLowerCase();
+    if (normalized.isEmpty) return -1;
+    for (var index = 0; index < options.length; index++) {
+      if (options[index].trim().toLowerCase() == normalized) return index;
+    }
+    return -1;
   }
 }

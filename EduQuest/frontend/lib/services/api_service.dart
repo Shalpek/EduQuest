@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,14 +7,29 @@ import '../config.dart';
 
 class ApiService {
   static String get baseUrl => AppConfig.baseUrl;
+  static const Duration _requestTimeout = Duration(seconds: 12);
 
   static Future<Map<String, String>> _getHeaders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getInt('user_id');
+    final token = await FirebaseAuth.instance.currentUser
+        ?.getIdToken(true)
+        .timeout(_requestTimeout);
     return {
       'Content-Type': 'application/json',
-      if (userId != null) 'X-User-Id': userId.toString(),
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
     };
+  }
+
+  static Future<void> _cacheUser(Map<String, dynamic> data) async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = data['user_id'] ?? data['id'];
+    if (userId is int) {
+      await prefs.setInt('user_id', userId);
+    } else if (userId is num) {
+      await prefs.setInt('user_id', userId.toInt());
+    }
+    await prefs.setString('user_email', data['email']?.toString() ?? '');
+    await prefs.setString('user_name', data['full_name']?.toString() ?? '');
+    await prefs.setString('user_role', data['role']?.toString() ?? 'student');
   }
 
   static Future<Map<String, dynamic>?> login(
@@ -21,24 +37,27 @@ class ApiService {
     String password,
   ) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/auth/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password}),
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
       );
-
+      final response = await http.get(
+        Uri.parse('$baseUrl/auth/me'),
+        headers: await _getHeaders(),
+      ).timeout(_requestTimeout);
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt('user_id', data['user_id']);
-        await prefs.setString('user_email', data['email'] ?? email);
-        await prefs.setString('user_name', data['full_name'] ?? '');
-        await prefs.setString('user_role', data['role'] ?? 'student');
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        await _cacheUser(data);
         return data;
       }
+      debugPrint(
+        'Backend /auth/me failed: ${response.statusCode} ${response.body}',
+      );
+      await FirebaseAuth.instance.signOut();
       return null;
     } catch (e) {
       debugPrint('Login error: $e');
+      await FirebaseAuth.instance.signOut();
       return null;
     }
   }
@@ -49,18 +68,25 @@ class ApiService {
     String password,
   ) async {
     try {
+      final credential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
+      await credential.user?.updateDisplayName(fullName);
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/register'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'full_name': fullName,
-          'email': email,
-          'password': password,
-        }),
+        Uri.parse('$baseUrl/auth/register-profile'),
+        headers: await _getHeaders(),
+        body: jsonEncode({'full_name': fullName}),
+      ).timeout(_requestTimeout);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        await _cacheUser(data);
+        return data;
+      }
+      debugPrint(
+        'Backend /auth/register-profile failed: ${response.statusCode} ${response.body}',
       );
-      if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (e) {
       debugPrint('Register error: $e');
+      await FirebaseAuth.instance.signOut();
     }
     return null;
   }
@@ -70,16 +96,18 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/auth/me'),
         headers: await _getHeaders(),
-      );
+      ).timeout(_requestTimeout);
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('user_email', data['email'] ?? '');
-        await prefs.setString('user_name', data['full_name'] ?? '');
-        await prefs.setString('user_role', data['role'] ?? 'student');
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        await _cacheUser(data);
         return data;
       }
-    } catch (_) {}
+      debugPrint(
+        'Backend /auth/me failed: ${response.statusCode} ${response.body}',
+      );
+    } catch (e) {
+      debugPrint('Current user load error: $e');
+    }
     return null;
   }
 
@@ -92,6 +120,7 @@ class ApiService {
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        await FirebaseAuth.instance.currentUser?.updateDisplayName(fullName);
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('user_name', data['full_name'] ?? fullName);
         return true;
@@ -105,23 +134,26 @@ class ApiService {
     String newPassword,
   ) async {
     try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/auth/change-password'),
-        headers: await _getHeaders(),
-        body: jsonEncode({
-          'current_password': currentPassword,
-          'new_password': newPassword,
-        }),
+      final user = FirebaseAuth.instance.currentUser;
+      final email = user?.email;
+      if (user == null || email == null) {
+        return 'No Firebase user is signed in.';
+      }
+      final credential = EmailAuthProvider.credential(
+        email: email,
+        password: currentPassword,
       );
-      if (response.statusCode == 200) return null;
-      final data = jsonDecode(response.body);
-      return data['detail']?.toString() ?? 'Unable to update password';
-    } catch (_) {
-      return 'Unable to update password';
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword);
+      return null;
+    } catch (e) {
+      debugPrint('Change password error: $e');
+      return 'Unable to update password with Firebase Auth.';
     }
   }
 
   static Future<void> logout() async {
+    await FirebaseAuth.instance.signOut();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('user_id');
     await prefs.remove('user_email');
@@ -138,19 +170,6 @@ class ApiService {
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (_) {}
     return null;
-  }
-
-  static Future<bool> completeLesson(int userId, int lessonId) async {
-    try {
-      final response = await http.post(
-        Uri.parse(
-          '$baseUrl/gamification/profile/$userId/complete_lesson/$lessonId',
-        ),
-        headers: await _getHeaders(),
-      );
-      return response.statusCode == 200;
-    } catch (_) {}
-    return false;
   }
 
   static Future<List<dynamic>> getUserAttempts(int userId) async {
@@ -186,6 +205,39 @@ class ApiService {
     return [];
   }
 
+  static Future<Map<String, dynamic>?> getCourseContentMap(int courseId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/courses/$courseId/content-map'),
+        headers: await _getHeaders(),
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<List<dynamic>> getCourseProgressSummary() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/courses/progress/summary'),
+        headers: await _getHeaders(),
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<Map<String, dynamic>?> getCourseProgress(int courseId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/courses/$courseId/progress'),
+        headers: await _getHeaders(),
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (_) {}
+    return null;
+  }
+
   static Future<Map<String, dynamic>?> getQuiz(int lessonId) async {
     try {
       final response = await http.get(
@@ -199,28 +251,31 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> submitQuiz(
     int quizId,
-    int userId,
-    double score,
+    List<int> answers,
   ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/quizzes/$quizId/submit'),
         headers: await _getHeaders(),
-        body: jsonEncode({'user_id': userId, 'score': score}),
+        body: jsonEncode({'answers': answers}),
       );
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (_) {}
     return null;
   }
 
-  static Future<String> getAiHint(int userId, String question) async {
+  static Future<String> getAiHint(
+    int userId,
+    String question, {
+    String context = 'General',
+  }) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/ai-tutor/hint'),
         headers: await _getHeaders(),
         body: jsonEncode({
           'user_id': userId,
-          'context': 'General',
+          'context': context,
           'user_question': question,
         }),
       );
@@ -398,19 +453,22 @@ class ApiService {
   }
 
   // Teacher Content Management
-  static Future<bool> createCourse(String title, String description) async {
+  static Future<Map<String, dynamic>?> createCourse(
+    String title,
+    String description,
+  ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/teacher/courses'),
         headers: await _getHeaders(),
         body: jsonEncode({'title': title, 'description': description}),
       );
-      return response.statusCode == 200;
+      if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (_) {}
-    return false;
+    return null;
   }
 
-  static Future<bool> createLesson(
+  static Future<Map<String, dynamic>?> createLesson(
     int courseId,
     String title,
     String content,
@@ -427,15 +485,16 @@ class ApiService {
           'order': order,
         }),
       );
-      return response.statusCode == 200;
+      if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (_) {}
-    return false;
+    return null;
   }
 
-  static Future<bool> createQuiz(
+  static Future<Map<String, dynamic>?> createQuiz(
     int lessonId,
     String title,
     List<dynamic> questions,
+    int xpReward,
   ) async {
     try {
       final response = await http.post(
@@ -445,11 +504,12 @@ class ApiService {
           'lesson_id': lessonId,
           'title': title,
           'questions': questions,
+          'xp_reward': xpReward,
         }),
       );
-      return response.statusCode == 200;
+      if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (_) {}
-    return false;
+    return null;
   }
 
   static Future<List<dynamic>> getUsers() async {
@@ -527,6 +587,98 @@ class ApiService {
     return null;
   }
 
+  static Future<Map<String, dynamic>?> getAppConfig() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/app/config'),
+        headers: await _getHeaders(),
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> createOpenQuestionSession(
+    int courseId,
+    int lessonId, {
+    String? message,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/ai-tutor/open-question/sessions'),
+        headers: await _getHeaders(),
+        body: jsonEncode({
+          'course_id': courseId,
+          'lesson_id': lessonId,
+          'message': message,
+        }),
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> sendOpenQuestionMessage(
+    int sessionId,
+    String message,
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/ai-tutor/open-question/sessions/$sessionId/message'),
+        headers: await _getHeaders(),
+        body: jsonEncode({'message': message}),
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> getStudentAiSession(int sessionId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/ai-tutor/sessions/$sessionId'),
+        headers: await _getHeaders(),
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> createQuizExplanationSession(
+    int attemptId, {
+    int? questionIndex,
+    String? message,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/ai-tutor/quiz-explanation/sessions'),
+        headers: await _getHeaders(),
+        body: jsonEncode({
+          'attempt_id': attemptId,
+          'question_index': questionIndex,
+          'message': message,
+        }),
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> sendQuizExplanationMessage(
+    int sessionId,
+    String message,
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/ai-tutor/quiz-explanation/sessions/$sessionId/message'),
+        headers: await _getHeaders(),
+        body: jsonEncode({'message': message}),
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (_) {}
+    return null;
+  }
+
   static Future<Map<String, dynamic>?> getAnalyticsOverview() async {
     try {
       final response = await http.get(
@@ -536,5 +688,149 @@ class ApiService {
       if (response.statusCode == 200) return jsonDecode(response.body);
     } catch (_) {}
     return null;
+  }
+
+  static Future<Map<String, dynamic>> createEModeSession({
+    required int courseId,
+    required int lessonId,
+    required String topic,
+    required String instructions,
+    String? studentLevel,
+    String? difficulty,
+    String? language,
+    int? taskCount,
+    List<String> preferredTypes = const [],
+    String? quizTitle,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/teacher/e-mode/sessions'),
+        headers: await _getHeaders(),
+        body: jsonEncode({
+          'course_id': courseId,
+          'lesson_id': lessonId,
+          'topic': topic,
+          'instructions': instructions,
+          'student_level': studentLevel,
+          'difficulty': difficulty,
+          'language': language,
+          'task_count': taskCount,
+          'preferred_types': preferredTypes,
+          'quiz_title': quizTitle,
+        }),
+      );
+      return _decodeJsonOrError(response);
+    } catch (e) {
+      return {'error': 'Unable to create Quiz AI Creator session: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getEModeSession(int sessionId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/teacher/e-mode/sessions/$sessionId'),
+        headers: await _getHeaders(),
+      );
+      return _decodeJsonOrError(response);
+    } catch (e) {
+      return {'error': 'Unable to load Quiz AI Creator session: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> uploadEModeMaterial({
+    required int sessionId,
+    required String fileName,
+    required List<int> bytes,
+  }) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/teacher/e-mode/sessions/$sessionId/upload'),
+      );
+      final headers = await _getHeaders();
+      headers.remove('Content-Type');
+      request.headers.addAll(headers);
+      request.files.add(
+        http.MultipartFile.fromBytes('file', bytes, filename: fileName),
+      );
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      return _decodeJsonOrError(response);
+    } catch (e) {
+      return {'error': 'Unable to upload learning material: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> generateEModeDraft(int sessionId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/teacher/e-mode/sessions/$sessionId/generate'),
+        headers: await _getHeaders(),
+      );
+      return _decodeJsonOrError(response);
+    } catch (e) {
+      return {'error': 'Unable to generate Quiz AI Creator draft: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> chatEModeSession({
+    required int sessionId,
+    required String message,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/teacher/e-mode/sessions/$sessionId/chat'),
+        headers: await _getHeaders(),
+        body: jsonEncode({'message': message}),
+      );
+      return _decodeJsonOrError(response);
+    } catch (e) {
+      return {'error': 'Unable to update Quiz AI Creator draft: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> saveEModeDraft({
+    required int sessionId,
+    String? title,
+    int? xpReward,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/teacher/e-mode/sessions/$sessionId/save'),
+        headers: await _getHeaders(),
+        body: jsonEncode({
+          'title': title,
+          'xp_reward': xpReward,
+        }),
+      );
+      return _decodeJsonOrError(response);
+    } catch (e) {
+      return {'error': 'Unable to save Quiz AI Creator draft: $e'};
+    }
+  }
+
+  static Map<String, dynamic> _decodeJsonOrError(http.Response response) {
+    if (response.body.isEmpty) {
+      return response.statusCode >= 200 && response.statusCode < 300
+          ? {}
+          : {'error': 'Unexpected empty response (${response.statusCode})'};
+    }
+
+    try {
+      final decoded = jsonDecode(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return decoded is Map<String, dynamic>
+            ? decoded
+            : {'data': decoded};
+      }
+      if (decoded is Map<String, dynamic>) {
+        return {'error': decoded['detail']?.toString() ?? 'Request failed'};
+      }
+      return {'error': 'Request failed with status ${response.statusCode}'};
+    } catch (_) {
+      return {
+        'error': 'Request failed with status ${response.statusCode}',
+      };
+    }
   }
 }
