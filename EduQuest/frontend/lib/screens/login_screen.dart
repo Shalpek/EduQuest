@@ -17,7 +17,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _fullNameCtl = TextEditingController();
   final _emailCtl = TextEditingController(text: 'student@eduquest.com');
-  final _pwdCtl = TextEditingController(text: 'password123');
+  final _pwdCtl = TextEditingController();
   final _confirmPwdCtl = TextEditingController();
 
   bool _isLoading = false;
@@ -29,19 +29,16 @@ class _LoginScreenState extends State<LoginScreen> {
     (
       label: 'Student demo',
       email: 'student@eduquest.com',
-      password: 'password123',
       role: 'Student',
     ),
     (
       label: 'Teacher demo',
       email: 'teacher@eduquest.com',
-      password: 'password123',
       role: 'Teacher',
     ),
     (
       label: 'Admin demo',
       email: 'admin@eduquest.com',
-      password: 'password123',
       role: 'Admin',
     ),
   ];
@@ -57,14 +54,23 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (res != null) {
+      final userIdValue = res['user_id'] ?? res['id'];
+      final userId = userIdValue is num ? userIdValue.toInt() : null;
+      if (userId == null) {
+        setState(() {
+          _isLoading = false;
+          _error = 'The server returned an invalid user profile payload.';
+        });
+        return;
+      }
       final role = res['role'];
       Widget nextScreen;
       if (role == 'teacher') {
-        nextScreen = TeacherScreen(userId: res['user_id']);
+        nextScreen = TeacherScreen(userId: userId);
       } else if (role == 'admin') {
-        nextScreen = AdminScreen(userId: res['user_id']);
+        nextScreen = AdminScreen(userId: userId);
       } else {
-        nextScreen = DashboardScreen(userId: res['user_id']);
+        nextScreen = DashboardScreen(userId: userId);
       }
       Navigator.pushReplacement(
         context,
@@ -139,13 +145,13 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  void _prefillDemo(String email, String password) {
+  void _prefillDemo(String email) {
     setState(() {
       _emailCtl.text = email;
-      _pwdCtl.text = password;
+      _pwdCtl.clear();
       _isRegisterMode = false;
       _error = '';
-      _success = '';
+      _success = 'Demo email selected. Enter the Firebase Auth password to continue.';
     });
   }
 
@@ -394,7 +400,7 @@ class _LoginScreenState extends State<LoginScreen> {
             (account) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: OutlinedButton(
-                onPressed: () => _prefillDemo(account.email, account.password),
+                onPressed: () => _prefillDemo(account.email),
                 child: Row(
                   children: [
                     Icon(

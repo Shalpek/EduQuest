@@ -28,7 +28,6 @@ class _AdminScreenState extends State<AdminScreen> {
   Map<String, dynamic>? platformStatus;
   bool isSafetyEnabled = true;
   bool retriesEnabled = true;
-  int xpPerQuiz = 100;
   bool isLoading = true;
   String? loadError;
 
@@ -57,7 +56,6 @@ class _AdminScreenState extends State<AdminScreen> {
         if (configData != null) {
           isSafetyEnabled = configData['ai_safety'] ?? true;
           retriesEnabled = configData['retries_enabled'] ?? true;
-          xpPerQuiz = configData['xp_per_quiz'] ?? 100;
         }
         isLoading = false;
       });
@@ -74,7 +72,7 @@ class _AdminScreenState extends State<AdminScreen> {
     final ok = await ApiService.updateSystemConfig(
       isSafetyEnabled,
       retriesEnabled,
-      xpPerQuiz,
+      100,
     );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -472,22 +470,11 @@ class _AdminScreenState extends State<AdminScreen> {
                 },
               ),
               const Divider(),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('XP per quiz'),
-                subtitle: Text(
-                  'Current value: $xpPerQuiz XP',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-              Slider(
-                value: xpPerQuiz.toDouble(),
-                min: 25,
-                max: 200,
-                divisions: 7,
-                label: '$xpPerQuiz XP',
-                onChanged: (value) => setState(() => xpPerQuiz = value.round()),
-                onChangeEnd: (_) => _updateConfig(),
+              const AppStatusBanner(
+                message:
+                    'Quiz XP is managed by teachers on each quiz. Admin safety settings no longer control assessment rewards.',
+                color: EduQuestColors.info,
+                icon: Icons.info_outline,
               ),
             ],
           ),
@@ -581,7 +568,7 @@ class _AdminScreenState extends State<AdminScreen> {
               ...[
                 'AI safety: ${configSnapshot['ai_safety'] == true ? 'Enabled' : 'Disabled'}',
                 'Retries: ${configSnapshot['retries_enabled'] == true ? 'Enabled' : 'Disabled'}',
-                'XP per quiz: ${configSnapshot['xp_per_quiz'] ?? 100}',
+                'Quiz XP: Teacher-managed per quiz',
                 'Attempts logged: ${metrics['attempts'] ?? 0}',
               ].map(
                 (line) => Padding(

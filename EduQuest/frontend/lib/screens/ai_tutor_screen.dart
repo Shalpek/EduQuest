@@ -4,13 +4,32 @@ import '../services/api_service.dart';
 import '../ui/app_components.dart';
 import '../ui/eduquest_theme.dart';
 
+typedef CreateOpenQuestionSession =
+    Future<Map<String, dynamic>?> Function(
+      int courseId,
+      int lessonId,
+      String? message,
+    );
+typedef SendOpenQuestionMessage =
+    Future<Map<String, dynamic>?> Function(int sessionId, String message);
+
 class AITutorScreen extends StatefulWidget {
+  final int courseId;
+  final String courseTitle;
+  final int lessonId;
+  final String lessonTitle;
   final int userId;
-  final String contextStr;
+  final CreateOpenQuestionSession? createSession;
+  final SendOpenQuestionMessage? sendMessage;
 
   const AITutorScreen({
+    required this.courseId,
+    required this.courseTitle,
+    required this.lessonId,
+    required this.lessonTitle,
     required this.userId,
-    required this.contextStr,
+    this.createSession,
+    this.sendMessage,
     super.key,
   });
 
@@ -22,6 +41,20 @@ class _AITutorScreenState extends State<AITutorScreen> {
   final TextEditingController _ctl = TextEditingController();
   final List<Map<String, String>> _messages = [];
   bool _isTyping = false;
+  bool _isInitializing = true;
+  int? _sessionId;
+  String? _error;
+
+  CreateOpenQuestionSession get _createSession =>
+      widget.createSession ??
+      ((courseId, lessonId, message) => ApiService.createOpenQuestionSession(
+        courseId,
+        lessonId,
+        message: message,
+      ));
+
+  SendOpenQuestionMessage get _sendMessageRequest =>
+      widget.sendMessage ?? ApiService.sendOpenQuestionMessage;
 
   @override
   void initState() {
@@ -29,12 +62,63 @@ class _AITutorScreenState extends State<AITutorScreen> {
     _messages.add({
       'role': 'ai',
       'text':
-          'Hello. I am your AI Tutor for ${widget.contextStr}. Ask for a hint, a simpler explanation, or a step-by-step way to approach the topic.',
+          'Ask about ${widget.lessonTitle}. I will answer from the selected lesson first and the course context second.',
+    });
+    _initializeSession();
+  }
+
+  Future<void> _initializeSession() async {
+    final session = await _createSession(
+      widget.courseId,
+      widget.lessonId,
+      null,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _sessionId = session?['session_id'] as int?;
+      _isInitializing = false;
+      if (_sessionId == null) {
+        _error =
+            'The AI tutor session could not start. Check the backend and try again.';
+      }
+    });
+  }
+
+  Future<void> _sendPrompt(String prompt) async {
+    if (_sessionId == null) {
+      setState(() {
+        _error =
+            'The tutor session is unavailable right now. Retry after the backend is ready.';
+        _isTyping = false;
+      });
+      return;
+    }
+
+    final response = await _sendMessageRequest(_sessionId!, prompt);
+    if (!mounted) return;
+
+    setState(() {
+      if (response == null || response['answer'] == null) {
+        _messages.add({
+          'role': 'ai',
+          'text':
+              'I could not generate a grounded answer right now. Please try again.',
+        });
+        _error = 'No AI answer was returned by the backend.';
+      } else {
+        _messages.add({
+          'role': 'ai',
+          'text': response['answer'].toString(),
+        });
+        _error = null;
+      }
+      _isTyping = false;
     });
   }
 
   Future<void> _sendMessage() async {
-    if (_ctl.text.trim().isEmpty || _isTyping) return;
+    if (_ctl.text.trim().isEmpty || _isTyping || _isInitializing) return;
 
     final prompt = _ctl.text.trim();
     setState(() {
@@ -43,13 +127,7 @@ class _AITutorScreenState extends State<AITutorScreen> {
       _ctl.clear();
     });
 
-    final aiResponse = await ApiService.getAiHint(widget.userId, prompt);
-    if (!mounted) return;
-
-    setState(() {
-      _messages.add({'role': 'ai', 'text': aiResponse});
-      _isTyping = false;
-    });
+    await _sendPrompt(prompt);
   }
 
   @override
@@ -71,20 +149,33 @@ class _AITutorScreenState extends State<AITutorScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const AppInfoChip(
-                    label: 'Guided support',
+                    label: 'Lesson-grounded support',
                     color: EduQuestColors.info,
                     icon: Icons.smart_toy_outlined,
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    widget.contextStr,
+                    widget.lessonTitle,
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Use the tutor for hints, simpler explanations, or help with the next step in your learning path.',
+                    widget.courseTitle,
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Ask for a simpler explanation, examples, summaries, or quiz preparation. Active quiz answers are intentionally blocked.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    AppStatusBanner(
+                      message: _error!,
+                      color: EduQuestColors.danger,
+                      icon: Icons.error_outline,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -92,7 +183,7 @@ class _AITutorScreenState extends State<AITutorScreen> {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: _messages.length + (_isTyping ? 1 : 0),
+              itemCount: _messages.length + ((_isTyping || _isInitializing) ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index == _messages.length) return _buildTypingIndicator();
                 final m = _messages[index];
@@ -142,7 +233,7 @@ class _AITutorScreenState extends State<AITutorScreen> {
                       minLines: 1,
                       maxLines: 4,
                       decoration: const InputDecoration(
-                        hintText: 'Ask for a hint or explanation...',
+                        hintText: 'Ask about this lesson...',
                       ),
                     ),
                   ),
@@ -151,7 +242,8 @@ class _AITutorScreenState extends State<AITutorScreen> {
                     width: 56,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: _isTyping ? null : _sendMessage,
+                      onPressed:
+                          (_isTyping || _isInitializing) ? null : _sendMessage,
                       style: ElevatedButton.styleFrom(
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(18),
@@ -171,13 +263,17 @@ class _AITutorScreenState extends State<AITutorScreen> {
   }
 
   Widget _buildTypingIndicator() {
-    return const Padding(
-      padding: EdgeInsets.only(bottom: 12),
+    final text =
+        _isInitializing
+            ? 'Starting lesson AI session...'
+            : 'AI Tutor is thinking...';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Text(
-          'AI Tutor is thinking...',
-          style: TextStyle(color: EduQuestColors.textMuted),
+          text,
+          style: const TextStyle(color: EduQuestColors.textMuted),
         ),
       ),
     );
