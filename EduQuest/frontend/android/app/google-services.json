@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "692678614393",
+    "project_id": "dimploma-c484d",
+    "storage_bucket": "dimploma-c484d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:692678614393:android:9b4972cb163daaea64a3a8",
+        "android_client_info": {
+          "package_name": "com.company.eduquestdiploma"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCG6MUcswa2SmxvvSE3z9yPjO_lrgMlsA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:692678614393:android:c3394ca8b58fb60964a3a8",
+        "android_client_info": {
+          "package_name": "com.example.frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCG6MUcswa2SmxvvSE3z9yPjO_lrgMlsA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

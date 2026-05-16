@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, Float, DateTime
+from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, Float, DateTime, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -27,12 +27,14 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
+    firebase_uid = Column(String, nullable=True, index=True)
     full_name = Column(String)
     hashed_password = Column(String)
     role = Column(String, default="student") # student, teacher, admin
     is_active = Column(Boolean, default=True)
 
     profile = relationship("GamificationProfile", back_populates="user", uselist=False)
+    e_mode_sessions = relationship("EModeSession", back_populates="teacher")
 
 class GamificationProfile(Base):
     __tablename__ = "gamification_profiles"
@@ -80,6 +82,7 @@ class Quiz(Base):
     id = Column(Integer, primary_key=True, index=True)
     lesson_id = Column(Integer, ForeignKey("lessons.id"))
     title = Column(String)
+    xp_reward = Column(Integer, default=100)
     questions = Column(String) # Stored as JSON string for simplicity in MVP
     assignments = relationship("Assignment", back_populates="quiz")
     
@@ -91,6 +94,9 @@ class Attempt(Base):
     quiz_id = Column(Integer, ForeignKey("quizzes.id"))
     score = Column(Float)
     earned_xp = Column(Integer)
+    student_answers_json = Column(Text, default="[]")
+    quiz_questions_snapshot_json = Column(Text, default="[]")
+    wrong_answer_indexes_json = Column(Text, default="[]")
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -108,4 +114,78 @@ class Assignment(Base):
 
     quiz = relationship("Quiz", back_populates="assignments")
     course = relationship("Course", back_populates="assignments")
+
+
+class EModeSession(Base):
+    __tablename__ = "e_mode_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    teacher_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    lesson_id = Column(Integer, ForeignKey("lessons.id"), nullable=False, index=True)
+    topic = Column(String, nullable=False)
+    instructions = Column(Text, default="")
+    student_level = Column(String, nullable=True)
+    difficulty = Column(String, nullable=True)
+    language = Column(String, nullable=True)
+    task_count = Column(Integer, nullable=True)
+    preferred_types = Column(Text, default="[]")
+    quiz_title = Column(String, nullable=True)
+    uploaded_file_name = Column(String, nullable=True)
+    uploaded_file_type = Column(String, nullable=True)
+    extracted_material_text = Column(Text, nullable=True)
+    current_draft = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    teacher = relationship("User", back_populates="e_mode_sessions")
+    messages = relationship(
+        "EModeMessage",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="EModeMessage.created_at",
+    )
+
+
+class EModeMessage(Base):
+    __tablename__ = "e_mode_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("e_mode_sessions.id"), nullable=False, index=True)
+    role = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    session = relationship("EModeSession", back_populates="messages")
+
+
+class StudentAISession(Base):
+    __tablename__ = "student_ai_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    mode = Column(String, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=True)
+    lesson_id = Column(Integer, ForeignKey("lessons.id"), nullable=True)
+    attempt_id = Column(Integer, ForeignKey("attempts.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    messages = relationship(
+        "StudentAIMessage",
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
+
+
+class StudentAIMessage(Base):
+    __tablename__ = "student_ai_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("student_ai_sessions.id"))
+    role = Column(String)
+    content = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    session = relationship("StudentAISession", back_populates="messages")
 

@@ -8,3 +8,6 @@ REPO_MEMORY/
 # Local backend runtime artifacts
 EduQuest/backend/*.log
 EduQuest/backend/*.db
+EduQuest/backend/.env
+EduQuest/backend/*firestore*.json
+EduQuest/dimploma-c484d-firebase-adminsdk-fbsvc-079c0dd796.json

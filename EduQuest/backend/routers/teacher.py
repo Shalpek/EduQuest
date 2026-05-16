@@ -1,67 +1,78 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from pydantic import BaseModel
 from typing import Optional
-import models, database, dependencies
+import database, dependencies
 import json
 from datetime import datetime
+from firestore_primary_store import get_store
 
 router = APIRouter()
 
 
-def _course_summary(course: models.Course) -> dict:
-    lesson_count = len(course.lessons) if course.lessons else 0
+def _store():
+    return get_store()
+
+
+def _safe_name(user: dict | None) -> str:
+    return _store().user_display_name(user)
+
+
+def _valid_scored_attempts() -> list[dict]:
+    return _store().list_valid_attempts("user_id", "quiz_id", "score")
+
+
+def _course_summary(course: dict) -> dict:
+    lesson_count = len(_store().list_lessons_for_course(course["id"]))
     return {
-        "id": course.id,
-        "title": course.title,
-        "description": course.description,
+        "id": course["id"],
+        "title": course["title"],
+        "description": course["description"],
         "lesson_count": lesson_count,
     }
 
 
-def _quiz_question_count(quiz: models.Quiz) -> int:
+def _quiz_question_count(quiz: dict) -> int:
     try:
-        questions = json.loads(quiz.questions)
+        questions = json.loads(quiz["questions"])
         return len(questions) if isinstance(questions, list) else 0
     except (TypeError, json.JSONDecodeError):
         return 0
 
 
-def _quiz_summary(quiz: models.Quiz) -> dict:
+def _quiz_summary(quiz: dict) -> dict:
     return {
-        "id": quiz.id,
-        "lesson_id": quiz.lesson_id,
-        "title": quiz.title,
+        "id": quiz["id"],
+        "lesson_id": quiz["lesson_id"],
+        "title": quiz["title"],
+        "xp_reward": quiz.get("xp_reward") or 100,
         "question_count": _quiz_question_count(quiz),
     }
 
 
-def _assignment_summary(assignment: models.Assignment) -> dict:
-    quiz = assignment.quiz
-    course = assignment.course
+def _assignment_summary(assignment: dict) -> dict:
+    quiz = _store().get_quiz(assignment["quiz_id"])
+    course = _store().get_course(assignment["course_id"])
     return {
-        "id": assignment.id,
-        "quiz_id": assignment.quiz_id,
-        "quiz_title": quiz.title if quiz else None,
-        "course_id": assignment.course_id,
-        "course_title": course.title if course else None,
-        "title": assignment.title,
-        "instructions": assignment.instructions,
-        "due_at": assignment.due_at.isoformat() if assignment.due_at else None,
-        "is_published": assignment.is_published,
-        "created_at": assignment.created_at.isoformat() if assignment.created_at else None,
+        "id": assignment["id"],
+        "quiz_id": assignment["quiz_id"],
+        "quiz_title": quiz["title"] if quiz else None,
+        "course_id": assignment["course_id"],
+        "course_title": course["title"] if course else None,
+        "title": assignment["title"],
+        "instructions": assignment.get("instructions", ""),
+        "due_at": assignment["due_at"].isoformat() if assignment.get("due_at") else None,
+        "is_published": assignment.get("is_published", False),
+        "created_at": assignment["created_at"].isoformat() if assignment.get("created_at") else None,
     }
 
 @router.get("/dashboard")
-def get_teacher_dashboard(db: Session = Depends(database.get_db), current_user: models.User = Depends(dependencies.require_teacher)):
-    # Total students
-    total_students = db.query(models.User).filter(models.User.role == "student").count()
-    
-    # Average score & Total Attempts
-    attempts_query = db.query(func.avg(models.Attempt.score), func.count(models.Attempt.id)).first()
-    avg_score = float(attempts_query[0]) if attempts_query[0] is not None else 0.0
-    total_attempts = int(attempts_query[1]) if attempts_query[1] is not None else 0
+def get_teacher_dashboard(db: Session = Depends(database.get_db), current_user=Depends(dependencies.require_teacher)):
+    _store().ensure_bootstrapped(db)
+    total_students = len(_store().list_by_role("student"))
+    attempts = _valid_scored_attempts()
+    avg_score = float(sum(item["score"] for item in attempts) / len(attempts)) if attempts else 0.0
+    total_attempts = len(attempts)
 
     return {
         "overview": {
@@ -72,38 +83,41 @@ def get_teacher_dashboard(db: Session = Depends(database.get_db), current_user: 
     }
 
 @router.get("/students-progress")
-def get_students_progress(db: Session = Depends(database.get_db), current_user: models.User = Depends(dependencies.require_teacher)):
-    students = db.query(models.User).filter(models.User.role == "student").all()
+def get_students_progress(db: Session = Depends(database.get_db), current_user=Depends(dependencies.require_teacher)):
+    _store().ensure_bootstrapped(db)
+    students = _store().list_by_role("student")
     
     result = []
     for s in students:
-        profile = s.profile
-        completed = db.query(func.count(models.CompletedLesson.id)).filter(models.CompletedLesson.user_id == s.id).scalar()
+        profile = _store().get_profile_by_user_id(s["id"])
+        completed = len(_store().list_completed_lessons_for_user(s["id"]))
         result.append({
-            "id": s.id,
-            "name": s.full_name,
-            "email": s.email,
-            "level": profile.level if profile else 1,
-            "xp": profile.xp if profile else 0,
-            "streak": profile.streak if profile else 0,
-            "lessons_completed": completed
+            "id": s["id"],
+            "name": _safe_name(s),
+            "email": _store().user_email(s),
+            "level": profile["level"] if profile else 1,
+            "xp": profile["xp"] if profile else 0,
+            "streak": profile["streak"] if profile else 0,
+            "lessons_completed": completed,
+            "completed_lessons": completed,
         })
     return result
 
 @router.get("/recent-attempts")
-def get_recent_attempts(limit: int = 10, db: Session = Depends(database.get_db), current_user: models.User = Depends(dependencies.require_teacher)):
-    attempts = db.query(models.Attempt).order_by(models.Attempt.created_at.desc()).limit(limit).all()
+def get_recent_attempts(limit: int = 10, db: Session = Depends(database.get_db), current_user=Depends(dependencies.require_teacher)):
+    _store().ensure_bootstrapped(db)
+    attempts = _valid_scored_attempts()[:limit]
     result = []
     for a in attempts:
-        user = db.query(models.User).filter(models.User.id == a.user_id).first()
-        quiz = db.query(models.Quiz).filter(models.Quiz.id == a.quiz_id).first()
+        user = _store().get_user_by_id(a["user_id"])
+        quiz = _store().get_quiz(a["quiz_id"])
         result.append({
-            "id": a.id,
-            "user_name": user.full_name if user else "Unknown",
-            "quiz_title": quiz.title if quiz else "Quiz",
-            "score": a.score,
-            "earned_xp": a.earned_xp,
-            "created_at": a.created_at.isoformat() if a.created_at else None
+            "id": a["id"],
+            "user_name": _safe_name(user),
+            "quiz_title": quiz["title"] if quiz else "Quiz",
+            "score": a["score"],
+            "earned_xp": a["earned_xp"],
+            "created_at": a["created_at"].isoformat() if a.get("created_at") else None
         })
     return result
 
@@ -121,6 +135,7 @@ class QuizCreate(BaseModel):
     lesson_id: int
     title: str
     questions: list
+    xp_reward: int = 100
 
 
 class AssignmentCreate(BaseModel):
@@ -139,54 +154,67 @@ class AssignmentUpdate(BaseModel):
     due_at: Optional[datetime] = None
 
 @router.post("/courses")
-def create_course(course: CourseCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(dependencies.require_teacher)):
-    new_course = models.Course(title=course.title, description=course.description)
-    db.add(new_course)
-    db.commit()
-    db.refresh(new_course)
+def create_course(course: CourseCreate, db: Session = Depends(database.get_db), current_user=Depends(dependencies.require_teacher)):
+    _store().ensure_bootstrapped(db)
+    new_course = _store().create_course(course.title, course.description, db=db)
     return _course_summary(new_course)
 
 @router.post("/lessons")
-def create_lesson(lesson: LessonCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(dependencies.require_teacher)):
-    course = db.query(models.Course).filter(models.Course.id == lesson.course_id).first()
+def create_lesson(lesson: LessonCreate, db: Session = Depends(database.get_db), current_user=Depends(dependencies.require_teacher)):
+    _store().ensure_bootstrapped(db)
+    course = _store().get_course(lesson.course_id)
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
-    new_lesson = models.Lesson(course_id=lesson.course_id, title=lesson.title, content=lesson.content, order=lesson.order)
-    db.add(new_lesson)
-    db.commit()
-    db.refresh(new_lesson)
+    new_lesson = _store().create_lesson(
+        course_id=lesson.course_id,
+        title=lesson.title,
+        content=lesson.content,
+        order=lesson.order,
+        db=db,
+    )
     return {
-        "id": new_lesson.id,
-        "course_id": new_lesson.course_id,
-        "course_title": course.title,
-        "title": new_lesson.title,
-        "content": new_lesson.content,
-        "order": new_lesson.order,
+        "id": new_lesson["id"],
+        "course_id": new_lesson["course_id"],
+        "course_title": course["title"],
+        "title": new_lesson["title"],
+        "content": new_lesson["content"],
+        "order": new_lesson["order"],
     }
 
 @router.post("/quizzes")
-def create_quiz(quiz: QuizCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(dependencies.require_teacher)):
-    lesson = db.query(models.Lesson).filter(models.Lesson.id == quiz.lesson_id).first()
+def create_quiz(quiz: QuizCreate, db: Session = Depends(database.get_db), current_user=Depends(dependencies.require_teacher)):
+    _store().ensure_bootstrapped(db)
+    lesson = _store().get_lesson(quiz.lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found")
 
-    new_quiz = models.Quiz(lesson_id=quiz.lesson_id, title=quiz.title, questions=json.dumps(quiz.questions))
-    db.add(new_quiz)
-    db.commit()
-    db.refresh(new_quiz)
+    if not quiz.questions:
+        raise HTTPException(status_code=400, detail="Quiz must contain at least one question")
+    if quiz.xp_reward < 0 or quiz.xp_reward > 500:
+        raise HTTPException(status_code=400, detail="XP reward must be between 0 and 500")
+
+    target_quiz, updated_existing = _store().create_or_update_quiz(
+        lesson_id=quiz.lesson_id,
+        title=quiz.title,
+        xp_reward=quiz.xp_reward,
+        questions=json.dumps(quiz.questions),
+        db=db,
+    )
     return {
-        **_quiz_summary(new_quiz),
-        "lesson_title": lesson.title,
+        **_quiz_summary(target_quiz),
+        "lesson_title": lesson["title"],
+        "updated_existing_quiz": updated_existing,
     }
 
 
 @router.get("/assignments")
 def get_assignments(
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(dependencies.require_teacher),
+    current_user=Depends(dependencies.require_teacher),
 ):
-    assignments = db.query(models.Assignment).order_by(models.Assignment.created_at.desc()).all()
+    _store().ensure_bootstrapped(db)
+    assignments = _store().list_assignments()
     return [_assignment_summary(assignment) for assignment in assignments]
 
 
@@ -194,26 +222,27 @@ def get_assignments(
 def create_assignment(
     assignment: AssignmentCreate,
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(dependencies.require_teacher),
+    current_user=Depends(dependencies.require_teacher),
 ):
-    course = db.query(models.Course).filter(models.Course.id == assignment.course_id).first()
+    _store().ensure_bootstrapped(db)
+    course = _store().get_course(assignment.course_id)
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
-    quiz = db.query(models.Quiz).filter(models.Quiz.id == assignment.quiz_id).first()
+    quiz = _store().get_quiz(assignment.quiz_id)
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
 
-    new_assignment = models.Assignment(
-        quiz_id=assignment.quiz_id,
-        course_id=assignment.course_id,
-        title=assignment.title,
-        instructions=assignment.instructions,
-        due_at=assignment.due_at,
+    new_assignment = _store().create_assignment(
+        {
+            "quiz_id": assignment.quiz_id,
+            "course_id": assignment.course_id,
+            "title": assignment.title,
+            "instructions": assignment.instructions,
+            "due_at": assignment.due_at,
+        },
+        db=db,
     )
-    db.add(new_assignment)
-    db.commit()
-    db.refresh(new_assignment)
     return _assignment_summary(new_assignment)
 
 
@@ -222,27 +251,32 @@ def update_assignment(
     assignment_id: int,
     payload: AssignmentUpdate,
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(dependencies.require_teacher),
+    current_user=Depends(dependencies.require_teacher),
 ):
-    assignment = db.query(models.Assignment).filter(models.Assignment.id == assignment_id).first()
+    _store().ensure_bootstrapped(db)
+    assignment = _store().get_assignment(assignment_id)
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
 
-    course = db.query(models.Course).filter(models.Course.id == payload.course_id).first()
+    course = _store().get_course(payload.course_id)
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
-    quiz = db.query(models.Quiz).filter(models.Quiz.id == payload.quiz_id).first()
+    quiz = _store().get_quiz(payload.quiz_id)
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
 
-    assignment.quiz_id = payload.quiz_id
-    assignment.course_id = payload.course_id
-    assignment.title = payload.title
-    assignment.instructions = payload.instructions
-    assignment.due_at = payload.due_at
-    db.commit()
-    db.refresh(assignment)
+    assignment = _store().update_assignment(
+        assignment_id,
+        {
+            "quiz_id": payload.quiz_id,
+            "course_id": payload.course_id,
+            "title": payload.title,
+            "instructions": payload.instructions,
+            "due_at": payload.due_at,
+        },
+        db=db,
+    )
     return _assignment_summary(assignment)
 
 
@@ -250,51 +284,59 @@ def update_assignment(
 def publish_assignment(
     assignment_id: int,
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(dependencies.require_teacher),
+    current_user=Depends(dependencies.require_teacher),
 ):
-    assignment = db.query(models.Assignment).filter(models.Assignment.id == assignment_id).first()
+    _store().ensure_bootstrapped(db)
+    assignment = _store().get_assignment(assignment_id)
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
 
-    assignment.is_published = not assignment.is_published
-    db.commit()
-    db.refresh(assignment)
+    assignment = _store().update_assignment(
+        assignment_id,
+        {"is_published": not assignment.get("is_published", False)},
+        db=db,
+    )
     return _assignment_summary(assignment)
 
 
 @router.get("/analytics-summary")
 def get_teacher_analytics_summary(
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(dependencies.require_teacher),
+    current_user=Depends(dependencies.require_teacher),
 ):
-    attempts = db.query(models.Attempt).all()
-    lessons_count = db.query(models.Lesson).count()
-    student_count = db.query(models.User).filter(models.User.role == "student").count()
+    _store().ensure_bootstrapped(db)
+    attempts = _valid_scored_attempts()
+    lessons_count = len(_store().list_lessons())
+    student_count = len(_store().list_by_role("student"))
 
     if attempts:
-        average_score = float(sum(attempt.score for attempt in attempts) / len(attempts))
+        average_score = float(sum(attempt["score"] for attempt in attempts) / len(attempts))
     else:
         average_score = 0.0
 
     quiz_scores: dict[int, list[float]] = {}
     for attempt in attempts:
-        quiz_scores.setdefault(attempt.quiz_id, []).append(attempt.score)
+        quiz_scores.setdefault(attempt["quiz_id"], []).append(attempt["score"])
 
     weak_topics = []
     for quiz_id, scores in quiz_scores.items():
-        quiz = db.query(models.Quiz).filter(models.Quiz.id == quiz_id).first()
+        quiz = _store().get_quiz(quiz_id)
         if not quiz:
             continue
         avg = sum(scores) / len(scores)
         weak_topics.append({
             "quiz_id": quiz_id,
-            "quiz_title": quiz.title,
+            "quiz_title": quiz["title"],
             "average_score": round(avg, 2),
         })
     weak_topics.sort(key=lambda item: item["average_score"])
     weak_topics = weak_topics[:3]
 
-    completed_lessons = db.query(models.CompletedLesson).count()
+    completed_lessons = sum(
+        len(_store().list_completed_lessons_for_user(student["id"]))
+        for student in _store().list_by_role("student")
+        if student.get("id") is not None
+    )
     total_possible_completions = student_count * lessons_count
     recent_completion_rate = (
         round(completed_lessons / total_possible_completions, 2)
@@ -303,18 +345,18 @@ def get_teacher_analytics_summary(
     )
 
     students_needing_attention = []
-    students = db.query(models.User).filter(models.User.role == "student").all()
+    students = _store().list_by_role("student")
     for student in students:
-        student_attempts = [attempt for attempt in attempts if attempt.user_id == student.id]
+        student_attempts = [attempt for attempt in attempts if attempt["user_id"] == student["id"]]
         if student_attempts:
-            student_avg = sum(attempt.score for attempt in student_attempts) / len(student_attempts)
+            student_avg = sum(attempt["score"] for attempt in student_attempts) / len(student_attempts)
         else:
             student_avg = 0.0
-        completed = db.query(func.count(models.CompletedLesson.id)).filter(models.CompletedLesson.user_id == student.id).scalar() or 0
+        completed = len(_store().list_completed_lessons_for_user(student["id"]))
         if student_avg < 0.7 or completed == 0:
             students_needing_attention.append({
-                "user_id": student.id,
-                "name": student.full_name,
+                "user_id": student["id"],
+                "name": _safe_name(student),
                 "average_score": round(student_avg, 2),
                 "completed_lessons": completed,
             })

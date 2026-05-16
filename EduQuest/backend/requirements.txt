@@ -3,3 +3,7 @@ uvicorn==0.42.0
 pydantic==2.12.5
 pydantic-settings==2.13.1
 sqlalchemy==2.0.48
+pypdf==5.5.0
+python-multipart==0.0.20
+openai==2.30.0
+firebase-admin==6.9.0
